@@ -1,0 +1,5 @@
+{
+  "name": "WealthFlow Tracker",
+  "description": "A comprehensive financial tracking SPA featuring yearly overviews, monthly budgeting, multi-account management, and AI-powered financial insights using Gemini.",
+  "requestFramePermissions": []
+}
