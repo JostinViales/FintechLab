@@ -181,28 +181,30 @@ export const TradeForm: React.FC<TradeFormProps> = ({
             </div>
           </div>
 
-          {/* Realized P&L (optional) */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">
-              Realized P&L{' '}
-              <span className="text-[var(--text-muted)] font-normal">
-                (optional, for closing trades)
-              </span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
-                $
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                value={realizedPnl}
-                onChange={(e) => setRealizedPnl(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] pl-8 pr-4 py-2 text-[var(--text-primary)] outline-none transition-all focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--focus-ring)]"
-                placeholder="0.00"
-              />
+          {/* Realized P&L — hidden for buys, optional override for sells */}
+          {side === 'sell' && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">
+                P&L Override{' '}
+                <span className="text-[var(--text-muted)] font-normal">
+                  (leave blank for auto-calculation)
+                </span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                  $
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={realizedPnl}
+                  onChange={(e) => setRealizedPnl(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] pl-8 pr-4 py-2 text-[var(--text-primary)] outline-none transition-all focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--focus-ring)]"
+                  placeholder="Auto (FIFO)"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Strategy Tag */}
           <div>

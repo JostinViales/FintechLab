@@ -8,6 +8,8 @@ const corsHeaders = {
 
 const WHITELISTED_ENDPOINTS = new Set([
   '/api/v5/trade/fills-history',
+  '/api/v5/trade/fills',
+  '/api/v5/trade/orders-history-archive',
   '/api/v5/account/balance',
   '/api/v5/market/ticker',
   '/api/v5/market/tickers',
@@ -26,11 +28,6 @@ interface ProxyRequestBody {
   demo?: boolean;
 }
 
-interface VaultSecret {
-  name: string;
-  decrypted_secret: string;
-}
-
 async function hmacSign(secret: string, message: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -44,39 +41,26 @@ async function hmacSign(secret: string, message: string): Promise<string> {
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
-async function getVaultSecrets(
-  supabaseAdmin: ReturnType<typeof createClient>,
+async function getCredentials(
+  db: ReturnType<typeof createClient>,
 ): Promise<{ apiKey: string; secretKey: string; passphrase: string } | null> {
-  const { data, error } = await supabaseAdmin
-    .from('vault.decrypted_secrets')
-    .select('name, decrypted_secret')
-    .in('name', ['okx_api_key', 'okx_secret_key', 'okx_passphrase']);
+  const { data, error } = await db
+    .from('okx_credentials')
+    .select('api_key, secret_key, passphrase')
+    .limit(1)
+    .maybeSingle();
 
-  if (error || !data || data.length < 3) {
-    return null;
-  }
-
-  const secrets = (data as VaultSecret[]).reduce(
-    (acc: Record<string, string>, s) => {
-      acc[s.name] = s.decrypted_secret;
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
-
-  if (!secrets['okx_api_key'] || !secrets['okx_secret_key'] || !secrets['okx_passphrase']) {
-    return null;
-  }
+  if (error || !data) return null;
 
   return {
-    apiKey: secrets['okx_api_key'],
-    secretKey: secrets['okx_secret_key'],
-    passphrase: secrets['okx_passphrase'],
+    apiKey: data.api_key,
+    secretKey: data.secret_key,
+    passphrase: data.passphrase,
   };
 }
 
 async function handleStoreCredentials(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  db: ReturnType<typeof createClient>,
   body: ProxyRequestBody,
 ): Promise<Response> {
   const { apiKey, secretKey, passphrase } = body;
@@ -87,43 +71,20 @@ async function handleStoreCredentials(
     );
   }
 
-  const secrets = [
-    { name: 'okx_api_key', secret: apiKey },
-    { name: 'okx_secret_key', secret: secretKey },
-    { name: 'okx_passphrase', secret: passphrase },
-  ];
+  // Upsert: delete existing row then insert new one
+  await db.from('okx_credentials').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
-  for (const { name, secret } of secrets) {
-    // Try to update existing secret first, then insert if not found
-    const { data: existing } = await supabaseAdmin
-      .from('vault.decrypted_secrets')
-      .select('id')
-      .eq('name', name)
-      .maybeSingle();
+  const { error } = await db.from('okx_credentials').insert({
+    api_key: apiKey,
+    secret_key: secretKey,
+    passphrase: passphrase,
+  });
 
-    if (existing) {
-      const { error } = await supabaseAdmin.rpc('vault.update_secret', {
-        secret_id: existing.id,
-        new_secret: secret,
-      });
-      if (error) {
-        return new Response(
-          JSON.stringify({ error: `Failed to update secret ${name}: ${error.message}` }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-    } else {
-      const { error } = await supabaseAdmin.rpc('vault.create_secret', {
-        new_secret: secret,
-        new_name: name,
-      });
-      if (error) {
-        return new Response(
-          JSON.stringify({ error: `Failed to store secret ${name}: ${error.message}` }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-    }
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: `Failed to store credentials: ${error.message}` }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
   }
 
   return new Response(JSON.stringify({ success: true }), {
@@ -133,7 +94,7 @@ async function handleStoreCredentials(
 }
 
 async function handleProxyRequest(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  db: ReturnType<typeof createClient>,
   body: ProxyRequestBody,
 ): Promise<Response> {
   const { endpoint, method, params, demo } = body;
@@ -152,7 +113,7 @@ async function handleProxyRequest(
     });
   }
 
-  const credentials = await getVaultSecrets(supabaseAdmin);
+  const credentials = await getCredentials(db);
   if (!credentials) {
     return new Response(
       JSON.stringify({ error: 'OKX credentials not configured. Add your API keys in Settings.' }),
@@ -193,8 +154,9 @@ async function handleProxyRequest(
 
   const responseData = await okxResponse.json();
 
+  // Always return 200 from our proxy — OKX error details are in responseData.code/msg
   return new Response(JSON.stringify({ data: responseData }), {
-    status: okxResponse.ok ? 200 : okxResponse.status,
+    status: 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
@@ -212,45 +174,17 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Verify JWT from Authorization header
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Missing authorization' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Create admin client (for Vault access)
-  const supabaseAdmin = createClient(
+  // Service role client — bypasses RLS
+  const db = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
   );
 
-  // Verify the user's JWT
-  const token = authHeader.replace('Bearer ', '');
-  const supabaseUser = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabaseUser.auth.getUser();
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Invalid authorization' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
   const body: ProxyRequestBody = await req.json();
 
   if (body.action === 'store-credentials') {
-    return handleStoreCredentials(supabaseAdmin, body);
+    return handleStoreCredentials(db, body);
   }
 
-  return handleProxyRequest(supabaseAdmin, body);
+  return handleProxyRequest(db, body);
 });

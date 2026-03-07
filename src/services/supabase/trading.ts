@@ -8,6 +8,7 @@ import type {
   TradeFilters,
   TradingLimit,
 } from '@/types';
+import { computeFifoMatches } from '@/lib/tradeMatching';
 
 // --- Row Types (snake_case from Supabase) ---
 
@@ -179,7 +180,7 @@ export const updateTrade = async (
   if (trade.quantity !== undefined) row.quantity = trade.quantity;
   if (trade.fee !== undefined) row.fee = trade.fee;
   if (trade.feeCurrency !== undefined) row.fee_currency = trade.feeCurrency;
-  if (trade.realizedPnl !== undefined) row.realized_pnl = trade.realizedPnl ?? null;
+  if ('realizedPnl' in trade) row.realized_pnl = trade.realizedPnl ?? null;
   if (trade.strategyTag !== undefined) row.strategy_tag = trade.strategyTag ?? null;
   if (trade.notes !== undefined) row.notes = trade.notes ?? null;
   if (trade.tradedAt !== undefined) row.traded_at = trade.tradedAt;
@@ -392,3 +393,53 @@ export const deleteTradingLimit = async (id: string): Promise<void> => {
   const { error } = await supabase.from('trading_limits').delete().eq('id', id);
   if (error) console.error('Error deleting trading limit:', error);
 };
+
+// --- FIFO P&L Matching ---
+
+/**
+ * Recalculate realized P&L for all trades of a single symbol using FIFO matching.
+ * Returns the number of trades updated.
+ */
+export async function matchTradesForSymbol(symbol: string): Promise<number> {
+  const trades = await loadTrades({ symbol });
+  const updates = computeFifoMatches(trades);
+
+  let updatedCount = 0;
+  for (const update of updates) {
+    const existing = trades.find((t) => t.id === update.id);
+    if (!existing) continue;
+
+    const currentPnl = existing.realizedPnl ?? null;
+    const newPnl = update.realizedPnl;
+    if (currentPnl === newPnl) continue;
+
+    await updateTrade(update.id, { realizedPnl: newPnl ?? undefined });
+    updatedCount++;
+  }
+
+  return updatedCount;
+}
+
+/**
+ * Recalculate realized P&L for ALL trades across all symbols using FIFO matching.
+ * Returns the number of trades updated.
+ */
+export async function recalcAllPnl(): Promise<number> {
+  const trades = await loadTrades();
+  const updates = computeFifoMatches(trades);
+
+  let updatedCount = 0;
+  for (const update of updates) {
+    const existing = trades.find((t) => t.id === update.id);
+    if (!existing) continue;
+
+    const currentPnl = existing.realizedPnl ?? null;
+    const newPnl = update.realizedPnl;
+    if (currentPnl === newPnl) continue;
+
+    await updateTrade(update.id, { realizedPnl: newPnl ?? undefined });
+    updatedCount++;
+  }
+
+  return updatedCount;
+}

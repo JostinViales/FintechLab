@@ -26,19 +26,23 @@ const callOkxProxy = async <T>(
   method: 'GET' | 'POST',
   params?: Record<string, string>,
 ): Promise<OkxApiResponse<T> | null> => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
   const { data, error } = await supabase.functions.invoke('okx-proxy', {
     body: { endpoint, method, params, demo: demoMode },
-    headers: session?.access_token
-      ? { Authorization: `Bearer ${session.access_token}` }
-      : undefined,
   });
 
   if (error) {
-    console.error('OKX proxy error:', error);
+    // Extract body from FunctionsHttpError for debugging
+    const ctx = (error as { context?: { json?: () => Promise<unknown> } }).context;
+    if (ctx?.json) {
+      try {
+        const body = await ctx.json();
+        console.error('OKX proxy error body:', body);
+      } catch {
+        console.error('OKX proxy error:', error.message);
+      }
+    } else {
+      console.error('OKX proxy error:', error);
+    }
     return null;
   }
 
@@ -65,14 +69,42 @@ export const fetchTradeHistory = async (params?: {
   if (params?.before) queryParams.before = params.before;
   if (params?.limit) queryParams.limit = params.limit;
 
+  queryParams.instType = queryParams.instType ?? 'SPOT';
   const response = await callOkxProxy<OkxFill>(
     '/api/v5/trade/fills-history',
     'GET',
-    Object.keys(queryParams).length > 0 ? queryParams : undefined,
+    queryParams,
   );
 
   if (!response || response.code !== '0') {
     console.error('Failed to fetch trade history:', response?.msg);
+    return [];
+  }
+
+  return response.data;
+};
+
+export const fetchRecentFills = async (params?: {
+  instId?: string;
+  after?: string;
+  before?: string;
+  limit?: string;
+}): Promise<OkxFill[]> => {
+  const queryParams: Record<string, string> = {};
+  if (params?.instId) queryParams.instId = params.instId;
+  if (params?.after) queryParams.after = params.after;
+  if (params?.before) queryParams.before = params.before;
+  if (params?.limit) queryParams.limit = params.limit;
+
+  queryParams.instType = queryParams.instType ?? 'SPOT';
+  const response = await callOkxProxy<OkxFill>(
+    '/api/v5/trade/fills',
+    'GET',
+    queryParams,
+  );
+
+  if (!response || response.code !== '0') {
+    console.error('Failed to fetch recent fills:', response?.msg);
     return [];
   }
 
@@ -124,19 +156,22 @@ export const storeCredentials = async (
   secretKey: string,
   passphrase: string,
 ): Promise<boolean> => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
   const { error } = await supabase.functions.invoke('okx-proxy', {
-    body: { action: 'store-credentials', apiKey, secretKey, passphrase },
-    headers: session?.access_token
-      ? { Authorization: `Bearer ${session.access_token}` }
-      : undefined,
+    body: { action: 'store-credentials', apiKey, secretKey, passphrase, demo: demoMode },
   });
 
   if (error) {
-    console.error('Failed to store credentials:', error);
+    const ctx = (error as { context?: { json?: () => Promise<unknown> } }).context;
+    if (ctx?.json) {
+      try {
+        const body = await ctx.json();
+        console.error('Store credentials error body:', body);
+      } catch {
+        console.error('Failed to store credentials:', error.message);
+      }
+    } else {
+      console.error('Failed to store credentials:', error);
+    }
     return false;
   }
 
@@ -160,6 +195,29 @@ function mapOkxFillToTrade(fill: OkxFill): Omit<Trade, 'id' | 'createdAt' | 'tot
   };
 }
 
+async function importFills(
+  fills: OkxFill[],
+  existingOkxIds: Set<string | undefined>,
+  result: OkxSyncResult,
+): Promise<void> {
+  for (const fill of fills) {
+    if (existingOkxIds.has(fill.tradeId)) {
+      result.skipped++;
+      continue;
+    }
+
+    const tradeData = mapOkxFillToTrade(fill);
+    const saved = await saveTrade(tradeData);
+
+    if (saved) {
+      result.imported++;
+      existingOkxIds.add(fill.tradeId);
+    } else {
+      result.errors.push(`Failed to save trade ${fill.tradeId}`);
+    }
+  }
+}
+
 export const syncTradesFromOkx = async (): Promise<OkxSyncResult> => {
   const result: OkxSyncResult = { imported: 0, skipped: 0, errors: [] };
 
@@ -169,39 +227,23 @@ export const syncTradesFromOkx = async (): Promise<OkxSyncResult> => {
     existingTrades.filter((t) => t.okxTradeId).map((t) => t.okxTradeId),
   );
 
-  // Paginate through OKX fills
+  // 1. Try recent fills first (last 3 days) — /api/v5/trade/fills
   let after: string | undefined;
-  const maxPages = 5; // 500 trades max per sync
-
-  for (let page = 0; page < maxPages; page++) {
-    const fills = await fetchTradeHistory({
-      limit: '100',
-      after,
-    });
-
+  for (let page = 0; page < 5; page++) {
+    const fills = await fetchRecentFills({ limit: '100', after });
     if (fills.length === 0) break;
-
-    for (const fill of fills) {
-      if (existingOkxIds.has(fill.tradeId)) {
-        result.skipped++;
-        continue;
-      }
-
-      const tradeData = mapOkxFillToTrade(fill);
-      const saved = await saveTrade(tradeData);
-
-      if (saved) {
-        result.imported++;
-        existingOkxIds.add(fill.tradeId);
-      } else {
-        result.errors.push(`Failed to save trade ${fill.tradeId}`);
-      }
-    }
-
-    // Use last tradeId as cursor for next page
+    await importFills(fills, existingOkxIds, result);
     after = fills[fills.length - 1]?.tradeId ?? '';
+    if (fills.length < 100) break;
+  }
 
-    // If fewer than 100 returned, no more pages
+  // 2. Also try historical fills (older than 3 days) — /api/v5/trade/fills-history
+  after = undefined;
+  for (let page = 0; page < 5; page++) {
+    const fills = await fetchTradeHistory({ limit: '100', after });
+    if (fills.length === 0) break;
+    await importFills(fills, existingOkxIds, result);
+    after = fills[fills.length - 1]?.tradeId ?? '';
     if (fills.length < 100) break;
   }
 

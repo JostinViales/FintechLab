@@ -7,8 +7,19 @@ import {
   Loader2,
   BarChart3,
   Radio,
+  Brain,
+  RefreshCw,
+  CheckCircle,
 } from 'lucide-react';
-import type { Trade, AssetBalance, WatchlistItem, StrategyTag, TradingGoal, TradingTab } from '@/types';
+import type {
+  Trade,
+  AssetBalance,
+  WatchlistItem,
+  StrategyTag,
+  TradingGoal,
+  TradingTab,
+  TradingLimit,
+} from '@/types';
 import type { OkxTicker } from '@/types/okx';
 import {
   loadTrades,
@@ -26,6 +37,11 @@ import {
   loadWatchlist,
   addToWatchlist,
   removeFromWatchlist,
+  loadTradingLimits,
+  saveTradingLimit,
+  deleteTradingLimit as deleteTradingLimitApi,
+  matchTradesForSymbol,
+  recalcAllPnl,
 } from '@/services/supabase/trading';
 import {
   computeTradingStats,
@@ -54,11 +70,18 @@ import { TimeAnalysisChart } from '@/components/trading/TimeAnalysisChart';
 import { HoldDurationChart } from '@/components/trading/HoldDurationChart';
 import { StrategyPerformance } from '@/components/trading/StrategyPerformance';
 import { RiskMetricsCards } from '@/components/trading/RiskMetricsCards';
+import { TradeSignalAnalysis } from '@/components/trading/ai/TradeSignalAnalysis';
+import { RiskAssessment } from '@/components/trading/ai/RiskAssessment';
+import { TradeJournalSummary } from '@/components/trading/ai/TradeJournalSummary';
+import { RebalancingSuggestions } from '@/components/trading/ai/RebalancingSuggestions';
+import { PositionSizingCalc } from '@/components/trading/PositionSizingCalc';
+import { TradingLimits } from '@/components/trading/TradingLimits';
 
 const TABS: { id: TradingTab; label: string; icon: React.FC<{ size?: number }> }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'trades', label: 'Trades', icon: ArrowLeftRight },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'ai', label: 'AI Insights', icon: Brain },
   { id: 'market', label: 'Market', icon: Radio },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
@@ -71,27 +94,33 @@ export const TradingPage: React.FC = () => {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [strategyTags, setStrategyTags] = useState<StrategyTag[]>([]);
   const [tradingGoals, setTradingGoals] = useState<TradingGoal[]>([]);
+  const [tradingLimits, setTradingLimits] = useState<TradingLimit[]>([]);
   const [livePrices, setLivePrices] = useState<Map<string, OkxTicker>>(new Map());
   const [activeTab, setActiveTab] = useState<TradingTab>('overview');
   const [isTradeFormOpen, setIsTradeFormOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recalcStatus, setRecalcStatus] = useState<'idle' | 'running' | 'done'>('idle');
+  const [recalcCount, setRecalcCount] = useState(0);
 
   // --- Data Loading ---
   useEffect(() => {
     const fetchAll = async () => {
-      const [tradesData, balancesData, watchlistData, tagsData, goalsData] = await Promise.all([
-        loadTrades(),
-        loadAssetBalances(),
-        loadWatchlist(),
-        loadStrategyTags(),
-        loadTradingGoals(),
-      ]);
+      const [tradesData, balancesData, watchlistData, tagsData, goalsData, limitsData] =
+        await Promise.all([
+          loadTrades(),
+          loadAssetBalances(),
+          loadWatchlist(),
+          loadStrategyTags(),
+          loadTradingGoals(),
+          loadTradingLimits(),
+        ]);
       setTrades(tradesData);
       setAssetBalances(balancesData);
       setWatchlist(watchlistData);
       setStrategyTags(tagsData);
       setTradingGoals(goalsData);
+      setTradingLimits(limitsData);
       setLoading(false);
     };
     fetchAll();
@@ -159,29 +188,37 @@ export const TradingPage: React.FC = () => {
 
   // --- Trade Handlers ---
   const handleSaveTrade = async (data: Omit<Trade, 'id' | 'createdAt' | 'total'>) => {
-    let updatedTrades: Trade[];
+    let savedSymbol: string;
 
     if (editingTrade) {
       const updated = await updateTrade(editingTrade.id, data);
       if (!updated) return;
-      updatedTrades = trades.map((t) => (t.id === updated.id ? updated : t));
+      savedSymbol = updated.symbol;
     } else {
       const saved = await saveTrade(data);
       if (!saved) return;
-      updatedTrades = [saved, ...trades];
+      savedSymbol = saved.symbol;
     }
 
-    setTrades(updatedTrades);
+    await matchTradesForSymbol(savedSymbol);
+    const refreshedTrades = await loadTrades();
+    setTrades(refreshedTrades);
     setEditingTrade(null);
-    await recalcBalances(updatedTrades);
+    await recalcBalances(refreshedTrades);
   };
 
   const handleDeleteTrade = async (id: string) => {
     if (!confirm('Delete this trade?')) return;
+    const deletedTrade = trades.find((t) => t.id === id);
     await deleteTradeApi(id);
-    const updatedTrades = trades.filter((t) => t.id !== id);
-    setTrades(updatedTrades);
-    await recalcBalances(updatedTrades);
+
+    if (deletedTrade) {
+      await matchTradesForSymbol(deletedTrade.symbol);
+    }
+
+    const refreshedTrades = await loadTrades();
+    setTrades(refreshedTrades);
+    await recalcBalances(refreshedTrades);
   };
 
   // --- Strategy Tag Handlers ---
@@ -210,6 +247,24 @@ export const TradingPage: React.FC = () => {
     }
   };
 
+  // --- Trading Limits Handlers ---
+  const handleSaveTradingLimit = async (
+    limit: Omit<TradingLimit, 'id' | 'createdAt' | 'updatedAt'>,
+  ) => {
+    const saved = await saveTradingLimit(limit);
+    if (saved) {
+      setTradingLimits((prev) => {
+        const filtered = prev.filter((l) => l.periodType !== saved.periodType);
+        return [...filtered, saved].sort((a, b) => a.periodType.localeCompare(b.periodType));
+      });
+    }
+  };
+
+  const handleDeleteTradingLimit = async (id: string) => {
+    await deleteTradingLimitApi(id);
+    setTradingLimits((prev) => prev.filter((l) => l.id !== id));
+  };
+
   // --- Watchlist Handlers ---
   const handleAddToWatchlist = async (symbol: string) => {
     const item = await addToWatchlist(symbol);
@@ -221,8 +276,21 @@ export const TradingPage: React.FC = () => {
     setWatchlist((prev) => prev.filter((w) => w.id !== id));
   };
 
+  // --- Recalculate All P&L ---
+  const handleRecalcAllPnl = async () => {
+    setRecalcStatus('running');
+    const count = await recalcAllPnl();
+    const refreshedTrades = await loadTrades();
+    setTrades(refreshedTrades);
+    await recalcBalances(refreshedTrades);
+    setRecalcCount(count);
+    setRecalcStatus('done');
+    setTimeout(() => setRecalcStatus('idle'), 3000);
+  };
+
   // --- OKX Sync Handler ---
   const handleSyncComplete = async () => {
+    await recalcAllPnl();
     const [tradesData, balancesData] = await Promise.all([loadTrades(), loadAssetBalances()]);
     setTrades(tradesData);
     setAssetBalances(balancesData);
@@ -338,6 +406,28 @@ export const TradingPage: React.FC = () => {
         </div>
       )}
 
+      {/* AI Insights Tab */}
+      {activeTab === 'ai' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card title="Trade Signal Analysis">
+              <TradeSignalAnalysis trades={trades} assetBalances={assetBalances} />
+            </Card>
+            <Card title="Portfolio Risk Assessment">
+              <RiskAssessment assetBalances={assetBalances} trades={trades} stats={tradingStats} />
+            </Card>
+          </div>
+
+          <Card title="Trade Journal Analysis">
+            <TradeJournalSummary trades={trades} stats={tradingStats} />
+          </Card>
+
+          <Card title="Rebalancing Suggestions">
+            <RebalancingSuggestions assetBalances={assetBalances} />
+          </Card>
+        </div>
+      )}
+
       {/* Market Tab */}
       {activeTab === 'market' && (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -353,12 +443,47 @@ export const TradingPage: React.FC = () => {
       {activeTab === 'settings' && (
         <div className="space-y-6 animate-in fade-in duration-300">
           <OkxConnectionSettings onSyncComplete={handleSyncComplete} />
+
+          <Card title="Recalculate All P&L">
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              Re-run FIFO matching across all trades to recalculate realized P&L for every sell.
+              Useful after bulk imports or manual edits.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleRecalcAllPnl}
+                disabled={recalcStatus === 'running'}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg shadow-md transition-all active:scale-95"
+              >
+                {recalcStatus === 'running' ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={16} />
+                )}
+                {recalcStatus === 'running' ? 'Recalculating...' : 'Recalculate All P&L'}
+              </button>
+              {recalcStatus === 'done' && (
+                <span className="flex items-center gap-1 text-sm text-emerald-400">
+                  <CheckCircle size={16} />
+                  Updated {recalcCount} trade{recalcCount !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          </Card>
+
           <StrategyTagManager
             tags={strategyTags}
             onSave={handleSaveStrategyTag}
             onDelete={handleDeleteStrategyTag}
           />
           <TradingGoals goals={tradingGoals} trades={trades} onSave={handleSaveTradingGoal} />
+          <PositionSizingCalc />
+          <TradingLimits
+            limits={tradingLimits}
+            trades={trades}
+            onSave={handleSaveTradingLimit}
+            onDelete={handleDeleteTradingLimit}
+          />
         </div>
       )}
 
