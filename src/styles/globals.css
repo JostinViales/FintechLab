@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+@import './theme.css';
+
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Safe Area Insets for iOS */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Touch optimization */
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent pull-to-refresh on mobile */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Mobile-specific touch feedback */
+@media (hover: none) and (pointer: coarse) {
+  button:active {
+    opacity: 0.8;
+  }
+}

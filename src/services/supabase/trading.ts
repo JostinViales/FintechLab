@@ -1,0 +1,394 @@
+import { supabase } from './client';
+import type {
+  Trade,
+  AssetBalance,
+  WatchlistItem,
+  TradingGoal,
+  StrategyTag,
+  TradeFilters,
+  TradingLimit,
+} from '@/types';
+
+// --- Row Types (snake_case from Supabase) ---
+
+interface SupabaseTradeRow {
+  id: string;
+  symbol: string;
+  side: string;
+  price: number;
+  quantity: number;
+  total: number;
+  fee: number;
+  fee_currency: string;
+  realized_pnl: number | null;
+  strategy_tag: string | null;
+  notes: string | null;
+  source: string;
+  okx_trade_id: string | null;
+  okx_order_id: string | null;
+  traded_at: string;
+  created_at: string;
+}
+
+interface SupabaseAssetBalanceRow {
+  id: string;
+  asset: string;
+  total_quantity: number;
+  avg_buy_price: number;
+  total_cost: number;
+  last_synced_at: string | null;
+}
+
+interface SupabaseWatchlistRow {
+  id: string;
+  symbol: string;
+  sort_order: number;
+  created_at: string;
+}
+
+interface SupabaseTradingGoalRow {
+  id: string;
+  period_type: string;
+  period_key: string;
+  target_pnl: number;
+  max_trades: number | null;
+  max_capital: number | null;
+  created_at: string;
+}
+
+interface SupabaseStrategyTagRow {
+  id: string;
+  name: string;
+  color: string;
+  description: string | null;
+}
+
+// --- Row Mappers ---
+
+function mapTradeRow(row: SupabaseTradeRow): Trade {
+  return {
+    id: row.id,
+    symbol: row.symbol,
+    side: row.side as Trade['side'],
+    price: Number(row.price),
+    quantity: Number(row.quantity),
+    total: Number(row.total),
+    fee: Number(row.fee),
+    feeCurrency: row.fee_currency,
+    realizedPnl: row.realized_pnl != null ? Number(row.realized_pnl) : undefined,
+    strategyTag: row.strategy_tag ?? undefined,
+    notes: row.notes ?? undefined,
+    source: row.source as Trade['source'],
+    okxTradeId: row.okx_trade_id ?? undefined,
+    okxOrderId: row.okx_order_id ?? undefined,
+    tradedAt: row.traded_at,
+    createdAt: row.created_at,
+  };
+}
+
+function mapAssetBalanceRow(row: SupabaseAssetBalanceRow): AssetBalance {
+  return {
+    id: row.id,
+    asset: row.asset,
+    totalQuantity: Number(row.total_quantity),
+    avgBuyPrice: Number(row.avg_buy_price),
+    totalCost: Number(row.total_cost),
+    lastSyncedAt: row.last_synced_at ?? undefined,
+  };
+}
+
+function mapWatchlistRow(row: SupabaseWatchlistRow): WatchlistItem {
+  return {
+    id: row.id,
+    symbol: row.symbol,
+    sortOrder: row.sort_order,
+  };
+}
+
+function mapTradingGoalRow(row: SupabaseTradingGoalRow): TradingGoal {
+  return {
+    id: row.id,
+    periodType: row.period_type as TradingGoal['periodType'],
+    periodKey: row.period_key,
+    targetPnl: Number(row.target_pnl),
+    maxTrades: row.max_trades ?? undefined,
+    maxCapital: row.max_capital != null ? Number(row.max_capital) : undefined,
+  };
+}
+
+function mapStrategyTagRow(row: SupabaseStrategyTagRow): StrategyTag {
+  return {
+    id: row.id,
+    name: row.name,
+    color: row.color,
+    description: row.description ?? undefined,
+  };
+}
+
+// --- Trades CRUD ---
+
+export const loadTrades = async (filters?: TradeFilters): Promise<Trade[]> => {
+  let query = supabase.from('trades').select('*').order('traded_at', { ascending: false });
+
+  if (filters?.symbol) query = query.eq('symbol', filters.symbol);
+  if (filters?.side) query = query.eq('side', filters.side);
+  if (filters?.strategyTag) query = query.eq('strategy_tag', filters.strategyTag);
+  if (filters?.dateFrom) query = query.gte('traded_at', filters.dateFrom);
+  if (filters?.dateTo) query = query.lte('traded_at', filters.dateTo);
+
+  const { data, error } = await query;
+  if (error) console.error('Error loading trades:', error);
+  return (data ?? []).map(mapTradeRow);
+};
+
+export const saveTrade = async (
+  trade: Omit<Trade, 'id' | 'createdAt' | 'total'>,
+): Promise<Trade | null> => {
+  const row = {
+    symbol: trade.symbol,
+    side: trade.side,
+    price: trade.price,
+    quantity: trade.quantity,
+    fee: trade.fee,
+    fee_currency: trade.feeCurrency,
+    realized_pnl: trade.realizedPnl ?? null,
+    strategy_tag: trade.strategyTag ?? null,
+    notes: trade.notes ?? null,
+    source: trade.source,
+    okx_trade_id: trade.okxTradeId ?? null,
+    okx_order_id: trade.okxOrderId ?? null,
+    traded_at: trade.tradedAt,
+  };
+
+  const { data, error } = await supabase.from('trades').insert(row).select().single();
+  if (error) {
+    console.error('Error saving trade:', error);
+    return null;
+  }
+  return mapTradeRow(data);
+};
+
+export const updateTrade = async (
+  id: string,
+  trade: Partial<Omit<Trade, 'id' | 'createdAt' | 'total'>>,
+): Promise<Trade | null> => {
+  const row: Record<string, unknown> = {};
+  if (trade.symbol !== undefined) row.symbol = trade.symbol;
+  if (trade.side !== undefined) row.side = trade.side;
+  if (trade.price !== undefined) row.price = trade.price;
+  if (trade.quantity !== undefined) row.quantity = trade.quantity;
+  if (trade.fee !== undefined) row.fee = trade.fee;
+  if (trade.feeCurrency !== undefined) row.fee_currency = trade.feeCurrency;
+  if (trade.realizedPnl !== undefined) row.realized_pnl = trade.realizedPnl ?? null;
+  if (trade.strategyTag !== undefined) row.strategy_tag = trade.strategyTag ?? null;
+  if (trade.notes !== undefined) row.notes = trade.notes ?? null;
+  if (trade.tradedAt !== undefined) row.traded_at = trade.tradedAt;
+
+  const { data, error } = await supabase.from('trades').update(row).eq('id', id).select().single();
+  if (error) {
+    console.error('Error updating trade:', error);
+    return null;
+  }
+  return mapTradeRow(data);
+};
+
+export const deleteTrade = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('trades').delete().eq('id', id);
+  if (error) console.error('Error deleting trade:', error);
+};
+
+// --- Asset Balances ---
+
+export const loadAssetBalances = async (): Promise<AssetBalance[]> => {
+  const { data, error } = await supabase.from('asset_balances').select('*').order('asset');
+  if (error) console.error('Error loading asset balances:', error);
+  return (data ?? []).map(mapAssetBalanceRow);
+};
+
+export const upsertAssetBalance = async (
+  balance: Omit<AssetBalance, 'id'>,
+): Promise<AssetBalance | null> => {
+  const row = {
+    asset: balance.asset,
+    total_quantity: balance.totalQuantity,
+    avg_buy_price: balance.avgBuyPrice,
+    total_cost: balance.totalCost,
+    last_synced_at: balance.lastSyncedAt ?? null,
+  };
+
+  const { data, error } = await supabase
+    .from('asset_balances')
+    .upsert(row, { onConflict: 'asset' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error upserting asset balance:', error);
+    return null;
+  }
+  return mapAssetBalanceRow(data);
+};
+
+export const clearAssetBalances = async (): Promise<void> => {
+  const { error } = await supabase.from('asset_balances').delete().neq('id', '');
+  if (error) console.error('Error clearing asset balances:', error);
+};
+
+// --- Strategy Tags ---
+
+export const loadStrategyTags = async (): Promise<StrategyTag[]> => {
+  const { data, error } = await supabase.from('strategy_tags').select('*').order('name');
+  if (error) console.error('Error loading strategy tags:', error);
+  return (data ?? []).map(mapStrategyTagRow);
+};
+
+export const saveStrategyTag = async (
+  tag: Omit<StrategyTag, 'id'>,
+): Promise<StrategyTag | null> => {
+  const { data, error } = await supabase
+    .from('strategy_tags')
+    .insert({ name: tag.name, color: tag.color, description: tag.description ?? null })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error saving strategy tag:', error);
+    return null;
+  }
+  return mapStrategyTagRow(data);
+};
+
+export const deleteStrategyTag = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('strategy_tags').delete().eq('id', id);
+  if (error) console.error('Error deleting strategy tag:', error);
+};
+
+// --- Watchlist ---
+
+export const loadWatchlist = async (): Promise<WatchlistItem[]> => {
+  const { data, error } = await supabase.from('watchlist').select('*').order('sort_order');
+  if (error) console.error('Error loading watchlist:', error);
+  return (data ?? []).map(mapWatchlistRow);
+};
+
+export const addToWatchlist = async (symbol: string): Promise<WatchlistItem | null> => {
+  const { data, error } = await supabase
+    .from('watchlist')
+    .insert({ symbol, sort_order: 0 })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error adding to watchlist:', error);
+    return null;
+  }
+  return mapWatchlistRow(data);
+};
+
+export const removeFromWatchlist = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('watchlist').delete().eq('id', id);
+  if (error) console.error('Error removing from watchlist:', error);
+};
+
+// --- Trading Goals ---
+
+export const loadTradingGoals = async (): Promise<TradingGoal[]> => {
+  const { data, error } = await supabase
+    .from('trading_goals')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) console.error('Error loading trading goals:', error);
+  return (data ?? []).map(mapTradingGoalRow);
+};
+
+export const saveTradingGoal = async (
+  goal: Omit<TradingGoal, 'id'>,
+): Promise<TradingGoal | null> => {
+  const { data, error } = await supabase
+    .from('trading_goals')
+    .upsert(
+      {
+        period_type: goal.periodType,
+        period_key: goal.periodKey,
+        target_pnl: goal.targetPnl,
+        max_trades: goal.maxTrades ?? null,
+        max_capital: goal.maxCapital ?? null,
+      },
+      { onConflict: 'period_type,period_key' },
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error saving trading goal:', error);
+    return null;
+  }
+  return mapTradingGoalRow(data);
+};
+
+// --- Trading Limits ---
+
+interface SupabaseTradingLimitRow {
+  id: string;
+  period_type: string;
+  max_trades: number | null;
+  max_loss: number | null;
+  max_capital: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapTradingLimitRow(row: SupabaseTradingLimitRow): TradingLimit {
+  return {
+    id: row.id,
+    periodType: row.period_type as TradingLimit['periodType'],
+    maxTrades: row.max_trades ?? undefined,
+    maxLoss: row.max_loss != null ? Number(row.max_loss) : undefined,
+    maxCapital: row.max_capital != null ? Number(row.max_capital) : undefined,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export const loadTradingLimits = async (): Promise<TradingLimit[]> => {
+  const { data, error } = await supabase
+    .from('trading_limits')
+    .select('*')
+    .order('period_type');
+  if (error) console.error('Error loading trading limits:', error);
+  return (data ?? []).map(mapTradingLimitRow);
+};
+
+export const saveTradingLimit = async (
+  limit: Omit<TradingLimit, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<TradingLimit | null> => {
+  const { data, error } = await supabase
+    .from('trading_limits')
+    .upsert(
+      {
+        period_type: limit.periodType,
+        max_trades: limit.maxTrades ?? null,
+        max_loss: limit.maxLoss ?? null,
+        max_capital: limit.maxCapital ?? null,
+        is_active: limit.isActive,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'period_type' },
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error saving trading limit:', error);
+    return null;
+  }
+  return mapTradingLimitRow(data);
+};
+
+export const deleteTradingLimit = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('trading_limits').delete().eq('id', id);
+  if (error) console.error('Error deleting trading limit:', error);
+};

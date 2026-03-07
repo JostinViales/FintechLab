@@ -1,0 +1,411 @@
+/* =========================================
+   WealthFlow Tracker - Theme System
+   WCAG 2.1 AA Compliant Dark Mode
+   ========================================= */
+
+/* =========================================
+   Light Theme (Default)
+   ========================================= */
+:root {
+  /* Background Colors */
+  --bg-primary: #f8fafc;
+  /* slate-50 - Main app background */
+  --bg-secondary: #ffffff;
+  /* white - Cards, modals, inputs */
+  --bg-tertiary: #f1f5f9;
+  /* slate-100 - Table headers, hover states */
+  --bg-elevated: #ffffff;
+  /* white - Elevated surfaces */
+
+  /* Text Colors */
+  --text-primary: #0f172a;
+  /* slate-900 - Headings, important text */
+  --text-secondary: #64748b;
+  /* slate-500 - Labels, descriptions */
+  --text-muted: #94a3b8;
+  /* slate-400 - Placeholders, hints */
+  --text-inverse: #ffffff;
+  /* white - Text on dark backgrounds */
+
+  /* Border Colors */
+  --border-default: #e2e8f0;
+  /* slate-200 - Default borders */
+  --border-subtle: #f1f5f9;
+  /* slate-100 - Subtle borders */
+  --border-strong: #cbd5e1;
+  /* slate-300 - Strong borders */
+
+  /* Accent Colors - Text variants for badges/status */
+  --accent-success-text: #166534;
+  /* green-800 */
+  --accent-danger-text: #dc2626;
+  /* red-600 */
+  --accent-info-text: #1e40af;
+  /* blue-800 */
+
+  /* Accent Colors - Muted/Light variants */
+  --accent-primary-muted: #c7d2fe;
+  /* indigo-200 */
+  --accent-primary-light: #e0e7ff;
+  /* indigo-100 */
+  --accent-success-light: #dcfce7;
+  /* green-100 */
+  --accent-danger-light: #fee2e2;
+  /* red-100 */
+  --accent-info-light: #dbeafe;
+  /* blue-100 */
+
+  /* Gradient Colors for Cards */
+  --gradient-income-from: #ecfdf5;
+  /* emerald-50 */
+  --gradient-expense-from: #fef2f2;
+  /* red-50 */
+  --gradient-savings-from: #eef2ff;
+  /* indigo-50 */
+
+  /* Accent Colors - Primary (Indigo) */
+  --accent-primary: #4f46e5;
+  /* indigo-600 */
+  --accent-primary-hover: #4338ca;
+  /* indigo-700 */
+
+  /* Semantic Colors - Success (Emerald) */
+  --accent-success: #059669;
+  /* emerald-600 */
+  --accent-success-light: #d1fae5;
+  /* emerald-100 */
+  --accent-success-text: #065f46;
+  /* emerald-800 */
+
+  /* Semantic Colors - Danger (Red) */
+  --accent-danger: #dc2626;
+  /* red-600 */
+  --accent-danger-light: #fee2e2;
+  /* red-100 */
+  --accent-danger-text: #991b1b;
+  /* red-800 */
+
+  /* Semantic Colors - Warning (Amber) */
+  --accent-warning: #d97706;
+  /* amber-600 */
+  --accent-warning-light: #fef3c7;
+  /* amber-100 */
+
+  /* Semantic Colors - Info (Blue) */
+  --accent-info: #2563eb;
+  /* blue-600 */
+  --accent-info-light: #dbeafe;
+  /* blue-100 */
+
+  /* Chart Colors */
+  --chart-primary: #6366f1;
+  /* indigo-500 */
+  --chart-secondary: #cbd5e1;
+  /* slate-300 */
+  --chart-grid: #e2e8f0;
+  /* slate-200 */
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #e2e8f0;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+
+  /* Scrollbar */
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+
+  /* Focus Ring */
+  --focus-ring: #c7d2fe;
+  /* indigo-200 */
+
+  /* Gradients */
+  --gradient-income-from: #ecfdf5;
+  /* emerald-50 */
+  --gradient-expense-from: #fef2f2;
+  /* red-50 */
+  --gradient-savings-from: #eef2ff;
+  /* indigo-50 */
+}
+
+/* =========================================
+   Dark Theme
+   ========================================= */
+[data-theme='dark'] {
+  /* Background Colors */
+  --bg-primary: #0f172a;
+  /* slate-900 - Main app background */
+  --bg-secondary: #1e293b;
+  /* slate-800 - Cards, modals, inputs */
+  --bg-tertiary: #334155;
+  /* slate-700 - Table headers, hover states */
+  --bg-elevated: #1e293b;
+  /* slate-800 - Elevated surfaces */
+
+  /* Text Colors */
+  --text-primary: #f1f5f9;
+  /* slate-100 - Headings, important text */
+  --text-secondary: #94a3b8;
+  /* slate-400 - Labels, descriptions */
+  --text-muted: #64748b;
+  /* slate-500 - Placeholders, hints */
+  --text-inverse: #0f172a;
+  /* slate-900 - Text on light backgrounds */
+
+  /* Border Colors */
+  --border-default: #334155;
+  /* slate-700 - Default borders */
+  --border-subtle: #1e293b;
+  /* slate-800 - Subtle borders */
+  --border-strong: #475569;
+  /* slate-600 - Strong borders */
+
+  /* Accent Colors - Text variants for badges/status */
+  --accent-success-text: #86efac;
+  /* green-300 */
+  --accent-danger-text: #fca5a5;
+  /* red-300 */
+  --accent-info-text: #93c5fd;
+  /* blue-300 */
+
+  /* Accent Colors - Muted/Light variants */
+  --accent-primary-muted: #312e81;
+  /* indigo-900 */
+  --accent-primary-light: rgba(99, 102, 241, 0.2);
+  /* indigo-500/20 */
+  --accent-success-light: rgba(34, 197, 94, 0.2);
+  /* green-500/20 */
+  --accent-danger-light: rgba(239, 68, 68, 0.2);
+  /* red-500/20 */
+  --accent-info-light: rgba(59, 130, 246, 0.2);
+  /* blue-500/20 */
+
+  /* Gradient Colors for Cards */
+  --gradient-income-from: rgba(34, 197, 94, 0.1);
+  /* emerald/10 */
+  --gradient-expense-from: rgba(239, 68, 68, 0.1);
+  /* red/10 */
+  --gradient-savings-from: rgba(99, 102, 241, 0.1);
+  /* indigo/10 */
+
+  /* Accent Colors - Primary (Indigo - brightened for dark mode) */
+  --accent-primary: #818cf8;
+  /* indigo-400 */
+  --accent-primary-hover: #6366f1;
+  /* indigo-500 */
+  --accent-primary-light: #312e81;
+  /* indigo-900 */
+  --accent-primary-muted: #3730a3;
+  /* indigo-800 */
+
+  /* Semantic Colors - Success (Emerald - brightened) */
+  --accent-success: #34d399;
+  /* emerald-400 */
+  --accent-success-light: #064e3b;
+  /* emerald-900 */
+  --accent-success-text: #6ee7b7;
+  /* emerald-300 */
+
+  /* Semantic Colors - Danger (Red - brightened) */
+  --accent-danger: #f87171;
+  /* red-400 */
+  --accent-danger-light: #7f1d1d;
+  /* red-900 */
+  --accent-danger-text: #fca5a5;
+  /* red-300 */
+
+  /* Semantic Colors - Warning (Amber - brightened) */
+  --accent-warning: #fbbf24;
+  /* amber-400 */
+  --accent-warning-light: #78350f;
+  /* amber-900 */
+
+  /* Semantic Colors - Info (Blue - brightened) */
+  --accent-info: #60a5fa;
+  /* blue-400 */
+  --accent-info-light: #1e3a8a;
+  /* blue-900 */
+
+  /* Chart Colors */
+  --chart-primary: #818cf8;
+  /* indigo-400 */
+  --chart-secondary: #475569;
+  /* slate-600 */
+  --chart-grid: #334155;
+  /* slate-700 */
+  --chart-tooltip-bg: #1e293b;
+  --chart-tooltip-border: #334155;
+
+  /* Shadows (more subtle in dark mode) */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+
+  /* Scrollbar */
+  --scrollbar-track: #1e293b;
+  --scrollbar-thumb: #475569;
+  --scrollbar-thumb-hover: #64748b;
+
+  /* Focus Ring */
+  --focus-ring: #4338ca;
+  /* indigo-700 */
+
+  /* Gradients */
+  --gradient-income-from: #064e3b;
+  /* emerald-900 */
+  --gradient-expense-from: #7f1d1d;
+  /* red-900 */
+  --gradient-savings-from: #312e81;
+  /* indigo-900 */
+}
+
+/* =========================================
+   System Preference Detection
+   (Only applied if no user preference set)
+   ========================================= */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    /* Background Colors */
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --bg-elevated: #1e293b;
+
+    /* Text Colors */
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-inverse: #0f172a;
+
+    /* Border Colors */
+    --border-default: #334155;
+    --border-subtle: #1e293b;
+    --border-strong: #475569;
+
+    /* Accent Colors */
+    --accent-primary: #818cf8;
+    --accent-primary-hover: #6366f1;
+    --accent-primary-light: #312e81;
+    --accent-primary-muted: #3730a3;
+
+    --accent-success: #34d399;
+    --accent-success-light: #064e3b;
+    --accent-success-text: #6ee7b7;
+
+    --accent-danger: #f87171;
+    --accent-danger-light: #7f1d1d;
+    --accent-danger-text: #fca5a5;
+
+    --accent-warning: #fbbf24;
+    --accent-warning-light: #78350f;
+
+    --accent-info: #60a5fa;
+    --accent-info-light: #1e3a8a;
+
+    /* Chart Colors */
+    --chart-primary: #818cf8;
+    --chart-secondary: #475569;
+    --chart-grid: #334155;
+    --chart-tooltip-bg: #1e293b;
+    --chart-tooltip-border: #334155;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+
+    /* Scrollbar */
+    --scrollbar-track: #1e293b;
+    --scrollbar-thumb: #475569;
+    --scrollbar-thumb-hover: #64748b;
+
+    /* Focus Ring */
+    --focus-ring: #4338ca;
+
+    /* Gradients */
+    --gradient-income-from: #064e3b;
+    --gradient-expense-from: #7f1d1d;
+    --gradient-savings-from: #312e81;
+  }
+}
+
+/* =========================================
+   Theme Transition (Smooth switching)
+   ========================================= */
+html {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+body,
+.theme-transition,
+.theme-transition * {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    fill 0.3s ease,
+    stroke 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+/* Disable transitions on page load */
+.no-transitions,
+.no-transitions * {
+  transition: none !important;
+}
+
+/* =========================================
+   Scrollbar Theming
+   ========================================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* =========================================
+   Base Element Theming
+   ========================================= */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Focus states */
+*:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background-color: var(--accent-primary-light);
+  color: var(--accent-primary);
+}
+
+[data-theme='dark'] ::selection {
+  background-color: var(--accent-primary-muted);
+  color: var(--text-primary);
+}

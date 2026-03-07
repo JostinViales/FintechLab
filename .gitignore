@@ -6,19 +6,55 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+firebase-debug.log
 
+# Dependencies
 node_modules
+
+# Build output
 dist
 dist-ssr
+*.tsbuildinfo
+
+# Local dev
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Firebase
+.firebase/
+
+# Supabase local
+supabase/.temp/
+
+# Environment files with secrets
+.env
+.env.*
+.env.local
+.env.production
+!.env.production.template
+
+# Credentials
+credentials.json
+service-account.json
+*.pem
+*.key
+*_rsa
+
+# Testing
+coverage/
+
+# Claude Code
+.claude/plans/
