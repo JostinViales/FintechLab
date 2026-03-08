@@ -160,30 +160,32 @@ export const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={trendData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
                   <XAxis
                     dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
                   />
                   <Tooltip
-                    cursor={{ fill: '#f1f5f9' }}
+                    cursor={{ fill: 'var(--bg-tertiary)' }}
                     contentStyle={{
                       borderRadius: '8px',
-                      border: 'none',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                      border: '1px solid var(--border-default)',
+                      boxShadow: 'var(--shadow-md)',
+                      backgroundColor: 'var(--chart-tooltip-bg)',
+                      color: 'var(--text-primary)',
                     }}
                     formatter={(value) => [`$${(value as number).toLocaleString()}`, 'Expenses']}
                   />
                   <Bar dataKey="expense" radius={[4, 4, 0, 0]} barSize={40}>
                     {trendData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.isCurrent ? '#6366f1' : '#cbd5e1'} />
+                      <Cell key={`cell-${index}`} fill={entry.isCurrent ? 'var(--chart-primary)' : 'var(--chart-secondary)'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -508,7 +510,7 @@ const YearlyAggregation: React.FC<YearlyAggregationProps> = ({
                           cat.percent > 100
                             ? 'bg-[var(--accent-danger)]'
                             : cat.percent > 80
-                              ? 'bg-amber-400'
+                              ? 'bg-[var(--accent-warning)]'
                               : 'bg-[var(--accent-success)]'
                         }`}
                         style={{ width: `${Math.min(cat.percent, 100)}%` }}

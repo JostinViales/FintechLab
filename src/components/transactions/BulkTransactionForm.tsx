@@ -96,16 +96,16 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="relative flex w-full max-w-5xl flex-col rounded-xl bg-white shadow-2xl max-h-[90vh] animate-in fade-in zoom-in duration-200">
+      <div className="relative flex w-full max-w-5xl flex-col rounded-xl bg-[var(--bg-secondary)] shadow-2xl max-h-[90vh] animate-in fade-in zoom-in duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-6 rounded-t-xl">
+        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-tertiary)] p-6 rounded-t-xl">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Bulk Add Expenses</h2>
-            <p className="text-sm text-slate-500">Quickly add multiple transactions at once.</p>
+            <h2 className="text-2xl font-bold text-[var(--text-primary)]">Bulk Add Expenses</h2>
+            <p className="text-sm text-[var(--text-secondary)]">Quickly add multiple transactions at once.</p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full bg-white p-2 text-slate-400 shadow-sm transition-all hover:text-slate-600 hover:shadow"
+            className="rounded-full bg-[var(--bg-secondary)] p-2 text-[var(--text-muted)] shadow-sm transition-all hover:text-[var(--text-primary)] hover:shadow"
           >
             <X size={20} />
           </button>
@@ -115,7 +115,7 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
         <div className="flex-1 overflow-y-auto p-6">
           <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="border-b border-slate-200 text-xs font-semibold text-slate-500">
+              <tr className="border-b border-[var(--border-default)] text-xs font-semibold text-[var(--text-secondary)]">
                 <th className="w-24 pb-3 pl-2">Type</th>
                 <th className="w-36 pb-3">Date</th>
                 <th className="pb-3">Description</th>
@@ -125,14 +125,14 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
                 <th className="w-20 pb-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[var(--border-subtle)]">
               {rows.map((row) => (
-                <tr key={row.localId} className="transition-colors group hover:bg-slate-50">
+                <tr key={row.localId} className="transition-colors group hover:bg-[var(--bg-tertiary)]">
                   <td className="align-top p-2">
                     <select
                       value={row.type}
                       onChange={(e) => updateRow(row.localId, 'type', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                      className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-primary)] p-2 text-sm outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
                     >
                       <option value={TransactionType.EXPENSE}>Expense</option>
                       <option value={TransactionType.INCOME}>Income</option>
@@ -143,7 +143,7 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
                       type="date"
                       value={row.date}
                       onChange={(e) => updateRow(row.localId, 'date', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                      className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-primary)] p-2 text-sm outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
                     />
                   </td>
                   <td className="align-top p-2">
@@ -153,12 +153,12 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
                       value={row.description}
                       onChange={(e) => updateRow(row.localId, 'description', e.target.value)}
                       placeholder="Description"
-                      className="w-full rounded-lg border border-slate-200 p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                      className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-primary)] p-2 text-sm outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
                     />
                   </td>
                   <td className="align-top p-2">
                     <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
                         $
                       </span>
                       <input
@@ -175,7 +175,7 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
                     <select
                       value={row.accountId}
                       onChange={(e) => updateRow(row.localId, 'accountId', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                      className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-primary)] p-2 text-sm outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
                     >
                       {accounts.map((acc) => (
                         <option key={acc.id} value={acc.id}>
@@ -188,7 +188,7 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
                     <select
                       value={row.categoryName}
                       onChange={(e) => updateRow(row.localId, 'categoryName', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                      className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-primary)] p-2 text-sm outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
                     >
                       {categories.map((cat) => (
                         <option key={cat.id} value={cat.name}>
@@ -200,7 +200,7 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
                   <td className="align-top flex justify-end gap-1 p-2">
                     <button
                       onClick={() => duplicateRow(row)}
-                      className="rounded transition-colors p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600"
+                      className="rounded transition-colors p-2 text-[var(--text-muted)] hover:bg-[var(--accent-primary-light)] hover:text-[var(--accent-primary)]"
                       title="Duplicate Row"
                     >
                       <Copy size={16} />
@@ -209,8 +209,8 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
                       onClick={() => removeRow(row.localId)}
                       className={`rounded p-2 transition-colors ${
                         rows.length > 1
-                          ? 'text-slate-400 hover:bg-red-50 hover:text-red-600'
-                          : 'cursor-not-allowed text-slate-200'
+                          ? 'text-[var(--text-muted)] hover:bg-[var(--accent-danger-light)] hover:text-[var(--accent-danger)]'
+                          : 'cursor-not-allowed text-[var(--text-muted)] opacity-30'
                       }`}
                       disabled={rows.length <= 1}
                       title="Remove Row"
@@ -224,21 +224,21 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
           </table>
           <button
             onClick={addRow}
-            className="mt-6 flex w-fit items-center gap-2 rounded-lg px-3 py-2 font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
+            className="mt-6 flex w-fit items-center gap-2 rounded-lg px-3 py-2 font-semibold text-[var(--accent-primary)] transition-colors hover:bg-[var(--accent-primary-light)] hover:text-[var(--accent-primary-hover)]"
           >
             <Plus size={18} /> Add Another Row
           </button>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 p-6 rounded-b-xl">
-          <div className="text-sm text-slate-500">
+        <div className="flex items-center justify-between border-t border-[var(--border-subtle)] bg-[var(--bg-tertiary)] p-6 rounded-b-xl">
+          <div className="text-sm text-[var(--text-secondary)]">
             {rows.filter((r) => r.amount && r.description).length} ready to save
           </div>
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="rounded-lg border border-transparent px-5 py-2.5 font-medium text-slate-600 transition-all hover:border-slate-200 hover:bg-white hover:shadow-sm"
+              className="rounded-lg border border-transparent px-5 py-2.5 font-medium text-[var(--text-secondary)] transition-all hover:border-[var(--border-default)] hover:bg-[var(--bg-secondary)] hover:shadow-sm"
             >
               Cancel
             </button>

@@ -65,7 +65,7 @@ export const LoginPage: React.FC = () => {
         <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-default)] p-6 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-lg px-4 py-3">
+              <div className="bg-[var(--accent-danger-light)] border border-[var(--accent-danger)] text-[var(--accent-danger-text)] text-sm rounded-lg px-4 py-3">
                 {error}
               </div>
             )}
