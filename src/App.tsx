@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Layers, Calendar, Loader2 } from 'lucide-react';
+import type { User } from '@supabase/supabase-js';
 import {
   Account,
   Transaction,
@@ -9,6 +10,7 @@ import {
   TransactionType,
   AccountType,
 } from '@/types';
+import { supabase } from '@/services/supabase/client';
 import {
   loadData,
   saveData,
@@ -70,6 +72,29 @@ const App: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Auth state
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
+
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -89,8 +114,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load data on mount
+  // Load data on mount (only when authenticated)
   useEffect(() => {
+    if (!user) return;
+
     const fetchData = async () => {
       try {
         const data = await loadData();
@@ -105,7 +132,7 @@ const App: React.FC = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [user]);
 
   // Save data on change
   useEffect(() => {
@@ -348,6 +375,19 @@ const App: React.FC = () => {
 
   // --- Views ---
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center">
+        <Loader2 size={48} className="text-[var(--accent-primary)] animate-spin mb-4" />
+        <h2 className="text-xl font-semibold text-[var(--text-primary)]">Loading...</h2>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center">
@@ -361,7 +401,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] flex">
       {/* Sidebar */}
-      <Sidebar onOpenAdvisor={() => setIsAdvisorOpen(true)} />
+      <Sidebar onOpenAdvisor={() => setIsAdvisorOpen(true)} onSignOut={handleSignOut} />
 
       {/* Main Content */}
       <main className="flex-1 md:ml-64 p-4 md:p-8 overflow-y-auto">

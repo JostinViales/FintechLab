@@ -1,10 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+];
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin =
+    origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]!;
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
+  };
+}
 
 const WHITELISTED_ENDPOINTS = new Set([
   '/api/v5/trade/fills-history',
@@ -62,16 +71,17 @@ async function getCredentials(
 async function handleStoreCredentials(
   db: ReturnType<typeof createClient>,
   body: ProxyRequestBody,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const { apiKey, secretKey, passphrase } = body;
   if (!apiKey || !secretKey || !passphrase) {
     return new Response(
       JSON.stringify({ error: 'apiKey, secretKey, and passphrase are required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } },
     );
   }
 
-  // Upsert: delete existing row then insert new one
+  // Upsert: delete user's existing credentials (RLS scopes to current user), then insert
   await db.from('okx_credentials').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
   const { error } = await db.from('okx_credentials').insert({
@@ -83,33 +93,34 @@ async function handleStoreCredentials(
   if (error) {
     return new Response(
       JSON.stringify({ error: `Failed to store credentials: ${error.message}` }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
     );
   }
 
   return new Response(JSON.stringify({ success: true }), {
     status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...cors, 'Content-Type': 'application/json' },
   });
 }
 
 async function handleProxyRequest(
   db: ReturnType<typeof createClient>,
   body: ProxyRequestBody,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const { endpoint, method, params, demo } = body;
 
   if (!endpoint || !method) {
     return new Response(JSON.stringify({ error: 'endpoint and method are required' }), {
       status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
 
   if (!WHITELISTED_ENDPOINTS.has(endpoint)) {
     return new Response(JSON.stringify({ error: 'Endpoint not allowed' }), {
       status: 403,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
 
@@ -117,7 +128,7 @@ async function handleProxyRequest(
   if (!credentials) {
     return new Response(
       JSON.stringify({ error: 'OKX credentials not configured. Add your API keys in Settings.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
     );
   }
 
@@ -157,11 +168,14 @@ async function handleProxyRequest(
   // Always return 200 from our proxy — OKX error details are in responseData.code/msg
   return new Response(JSON.stringify({ data: responseData }), {
     status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...cors, 'Content-Type': 'application/json' },
   });
 }
 
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -174,17 +188,37 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Service role client — bypasses RLS
+  // Authenticate user via JWT — scopes credential access to this user
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   const db = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    { global: { headers: { Authorization: authHeader } } },
   );
+
+  // Verify the user is authenticated
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   const body: ProxyRequestBody = await req.json();
 
   if (body.action === 'store-credentials') {
-    return handleStoreCredentials(db, body);
+    return handleStoreCredentials(db, body, corsHeaders);
   }
 
-  return handleProxyRequest(db, body);
+  return handleProxyRequest(db, body, corsHeaders);
 });

@@ -151,6 +151,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             <input
               type="text"
               required
+              maxLength={500}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-4 py-2 text-[var(--text-primary)] outline-none transition-all focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--focus-ring)]"
