@@ -64,7 +64,7 @@ export const askFinancialAdvisor = async (
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: `
         You are a highly intelligent and capable financial advisor for the "WealthFlow" application.
         Your goal is to provide accurate, data-driven, and actionable financial advice based on the user's actual data.
@@ -159,7 +159,7 @@ export const analyzeTradeSignals = async (
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: prompt,
       config: { thinkingConfig: { thinkingBudget: 2048 } },
     });
@@ -236,7 +236,7 @@ export const assessPortfolioRisk = async (
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: prompt,
       config: { thinkingConfig: { thinkingBudget: 2048 } },
     });
@@ -311,7 +311,7 @@ export const summarizeTradeJournal = async (
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: prompt,
       config: { thinkingConfig: { thinkingBudget: 2048 } },
     });
@@ -372,7 +372,7 @@ export const suggestRebalancing = async (
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: prompt,
       config: { thinkingConfig: { thinkingBudget: 2048 } },
     });
