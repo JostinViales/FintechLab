@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import { Account, Transaction, Category, TransactionType } from '@/types';
 import type {
   Trade,
@@ -9,16 +8,37 @@ import type {
   JournalSummary,
   RebalancingSuggestion,
 } from '@/types';
+import { supabase } from '@/services/supabase/client';
 
-const getClient = (): GoogleGenAI | null => {
-  const apiKey =
-    import.meta.env.VITE_GEMINI_API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('Gemini API key not found in environment variables.');
-    return null;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+async function callGeminiProxy(action: string, prompt: string): Promise<string> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    return 'Please sign in to use AI features.';
   }
-  return new GoogleGenAI({ apiKey });
-};
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/gemini-proxy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ action, payload: { prompt } }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(err.error ?? `Gemini proxy error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.text ?? '';
+}
 
 export const askFinancialAdvisor = async (
   query: string,
@@ -26,8 +46,6 @@ export const askFinancialAdvisor = async (
   transactions: Transaction[],
   categories: Category[],
 ): Promise<string> => {
-  const client = getClient();
-  if (!client) return 'Please configure your API Key to use the AI Advisor.';
 
   const now = new Date();
 
@@ -62,45 +80,40 @@ export const askFinancialAdvisor = async (
     )
     .join('\n');
 
+  const prompt = `
+    You are a highly intelligent and capable financial advisor for the "WealthFlow" application.
+    Your goal is to provide accurate, data-driven, and actionable financial advice based on the user's actual data.
+
+    **User's Financial Snapshot:**
+    - Current Date: ${now.toLocaleDateString()}
+    - Net Worth: $${netWorth.toLocaleString()}
+    - Current Month Income: $${income.toLocaleString()}
+    - Current Month Expenses: $${expenses.toLocaleString()}
+
+    **Accounts:**
+    ${accountsContext}
+
+    **Yearly Category Budgets:**
+    ${budgetsContext}
+
+    **Recent Transactions (Last 50):**
+    ${transactionsContext}
+
+    **User Query:** "${query}"
+
+    **Instructions:**
+    1. Analyze the provided data to answer the user's specific question.
+    2. If asking about spending habits, identify patterns in the transaction history.
+    3. If asking about budget, compare recent spending against the yearly budget limits (considering the current time of year).
+    4. Be specific: Cite specific transaction amounts, dates, or account names to ground your advice in reality.
+    5. Provide concrete, actionable steps they can take to improve their financial health.
+    6. If the user has high-interest debt (Credit Card/Loan), prioritize advice on paying that down.
+    7. Keep the tone professional, encouraging, and objective.
+  `;
+
   try {
-    const response = await client.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
-      contents: `
-        You are a highly intelligent and capable financial advisor for the "WealthFlow" application.
-        Your goal is to provide accurate, data-driven, and actionable financial advice based on the user's actual data.
-
-        **User's Financial Snapshot:**
-        - Current Date: ${now.toLocaleDateString()}
-        - Net Worth: $${netWorth.toLocaleString()}
-        - Current Month Income: $${income.toLocaleString()}
-        - Current Month Expenses: $${expenses.toLocaleString()}
-
-        **Accounts:**
-        ${accountsContext}
-
-        **Yearly Category Budgets:**
-        ${budgetsContext}
-
-        **Recent Transactions (Last 50):**
-        ${transactionsContext}
-
-        **User Query:** "${query}"
-
-        **Instructions:**
-        1. Analyze the provided data to answer the user's specific question.
-        2. If asking about spending habits, identify patterns in the transaction history.
-        3. If asking about budget, compare recent spending against the yearly budget limits (considering the current time of year).
-        4. Be specific: Cite specific transaction amounts, dates, or account names to ground your advice in reality.
-        5. Provide concrete, actionable steps they can take to improve their financial health.
-        6. If the user has high-interest debt (Credit Card/Loan), prioritize advice on paying that down.
-        7. Keep the tone professional, encouraging, and objective.
-      `,
-      config: {
-        thinkingConfig: { thinkingBudget: 2048 },
-      },
-    });
-
-    return response.text ?? "I couldn't generate a response at this time.";
+    const text = await callGeminiProxy('financial-advisor', prompt);
+    return text || "I couldn't generate a response at this time.";
   } catch (error) {
     console.error('Gemini API Error:', error);
     return 'Sorry, I encountered an error while analyzing your finances. Please try again.';
@@ -121,11 +134,6 @@ export const analyzeTradeSignals = async (
     confidence: 'low',
     reasoning: 'Analysis unavailable.',
   };
-
-  const client = getClient();
-  if (!client) {
-    return { ...fallback, summary: 'Please configure your API Key to use AI trading analysis.' };
-  }
 
   const symbolTrades = recentTrades.filter((t) => t.symbol === symbol).slice(0, 20);
   const position = assetBalances.find((a) => a.asset === symbol.split('-')[0]);
@@ -158,13 +166,7 @@ export const analyzeTradeSignals = async (
   `;
 
   try {
-    const response = await client.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
-      contents: prompt,
-      config: { thinkingConfig: { thinkingBudget: 2048 } },
-    });
-
-    const text = response.text ?? '';
+    const text = await callGeminiProxy('analyze-trade-signals', prompt);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]) as TradeSignalAnalysis;
@@ -188,14 +190,6 @@ export const assessPortfolioRisk = async (
     factors: [],
     suggestions: ['Unable to assess risk. Please try again.'],
   };
-
-  const client = getClient();
-  if (!client) {
-    return {
-      ...fallback,
-      suggestions: ['Please configure your API Key to use AI risk assessment.'],
-    };
-  }
 
   const totalCost = assetBalances.reduce((s, a) => s + a.totalCost, 0);
   const positions = assetBalances.map((a) => ({
@@ -235,13 +229,7 @@ export const assessPortfolioRisk = async (
   `;
 
   try {
-    const response = await client.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
-      contents: prompt,
-      config: { thinkingConfig: { thinkingBudget: 2048 } },
-    });
-
-    const text = response.text ?? '';
+    const text = await callGeminiProxy('assess-portfolio-risk', prompt);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]) as RiskAssessment;
@@ -265,11 +253,6 @@ export const summarizeTradeJournal = async (
     weaknesses: [],
     recommendations: [],
   };
-
-  const client = getClient();
-  if (!client) {
-    return { ...fallback, overview: 'Please configure your API Key to use AI journal analysis.' };
-  }
 
   const recentTrades = trades.slice(0, 50);
   const strategyBreakdown = new Map<string, number>();
@@ -310,13 +293,7 @@ export const summarizeTradeJournal = async (
   `;
 
   try {
-    const response = await client.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
-      contents: prompt,
-      config: { thinkingConfig: { thinkingBudget: 2048 } },
-    });
-
-    const text = response.text ?? '';
+    const text = await callGeminiProxy('summarize-trade-journal', prompt);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]) as JournalSummary;
@@ -333,9 +310,6 @@ export const suggestRebalancing = async (
   assetBalances: AssetBalance[],
   totalPortfolioValue: number,
 ): Promise<RebalancingSuggestion[]> => {
-  const client = getClient();
-  if (!client) return [];
-
   const totalCost = assetBalances.reduce((s, a) => s + a.totalCost, 0);
   const positions = assetBalances.map((a) => ({
     asset: a.asset,
@@ -371,13 +345,7 @@ export const suggestRebalancing = async (
   `;
 
   try {
-    const response = await client.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
-      contents: prompt,
-      config: { thinkingConfig: { thinkingBudget: 2048 } },
-    });
-
-    const text = response.text ?? '';
+    const text = await callGeminiProxy('suggest-rebalancing', prompt);
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]) as RebalancingSuggestion[];

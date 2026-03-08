@@ -10,11 +10,13 @@ import {
   TrendingUp,
   Target,
   CandlestickChart,
+  LogOut,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 interface SidebarProps {
   onOpenAdvisor: () => void;
+  onSignOut: () => void;
 }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -22,7 +24,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'
   }`;
 
-export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor, onSignOut }) => {
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 hidden md:flex flex-col fixed h-full z-10">
       <div className="p-6">
@@ -77,9 +79,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor }) => {
         </nav>
       </div>
 
-      <div className="mt-auto p-6 border-t border-slate-800 flex items-center justify-between">
-        <p className="text-xs text-slate-500">&copy; 2024 WealthFlow</p>
-        <ThemeToggle />
+      <div className="mt-auto p-6 border-t border-slate-800 space-y-3">
+        <button
+          onClick={onSignOut}
+          className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+        >
+          <LogOut size={16} />
+          <span>Sign Out</span>
+        </button>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-slate-500">&copy; 2024 WealthFlow</p>
+          <ThemeToggle />
+        </div>
       </div>
     </aside>
   );

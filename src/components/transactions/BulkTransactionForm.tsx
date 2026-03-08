@@ -149,6 +149,7 @@ export const BulkTransactionForm: React.FC<BulkTransactionFormProps> = ({
                   <td className="align-top p-2">
                     <input
                       type="text"
+                      maxLength={500}
                       value={row.description}
                       onChange={(e) => updateRow(row.localId, 'description', e.target.value)}
                       placeholder="Description"
