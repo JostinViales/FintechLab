@@ -6,7 +6,7 @@ import type {
   OkxTicker,
   OkxSyncResult,
 } from '@/types/okx';
-import type { Trade } from '@/types/trading';
+import type { Trade, TradingInstance } from '@/types/trading';
 import { loadTrades, saveTrade, upsertAssetBalance } from '@/services/supabase/trading';
 
 // --- Demo mode state ---
@@ -199,6 +199,7 @@ async function importFills(
   fills: OkxFill[],
   existingOkxIds: Set<string | undefined>,
   result: OkxSyncResult,
+  instance: TradingInstance,
 ): Promise<void> {
   for (const fill of fills) {
     if (existingOkxIds.has(fill.tradeId)) {
@@ -207,7 +208,7 @@ async function importFills(
     }
 
     const tradeData = mapOkxFillToTrade(fill);
-    const saved = await saveTrade(tradeData);
+    const saved = await saveTrade(tradeData, instance);
 
     if (saved) {
       result.imported++;
@@ -218,11 +219,16 @@ async function importFills(
   }
 }
 
-export const syncTradesFromOkx = async (): Promise<OkxSyncResult> => {
+export const syncTradesFromOkx = async (
+  instance: TradingInstance = 'live',
+): Promise<OkxSyncResult> => {
   const result: OkxSyncResult = { imported: 0, skipped: 0, errors: [] };
 
   // Load existing OKX trade IDs for dedup
-  const existingTrades = await loadTrades({ source: 'okx' } as Parameters<typeof loadTrades>[0]);
+  const existingTrades = await loadTrades(
+    { source: 'okx' } as Parameters<typeof loadTrades>[0],
+    instance,
+  );
   const existingOkxIds = new Set(
     existingTrades.filter((t) => t.okxTradeId).map((t) => t.okxTradeId),
   );
@@ -232,7 +238,7 @@ export const syncTradesFromOkx = async (): Promise<OkxSyncResult> => {
   for (let page = 0; page < 5; page++) {
     const fills = await fetchRecentFills({ limit: '100', after });
     if (fills.length === 0) break;
-    await importFills(fills, existingOkxIds, result);
+    await importFills(fills, existingOkxIds, result, instance);
     after = fills[fills.length - 1]?.tradeId ?? '';
     if (fills.length < 100) break;
   }
@@ -242,7 +248,7 @@ export const syncTradesFromOkx = async (): Promise<OkxSyncResult> => {
   for (let page = 0; page < 5; page++) {
     const fills = await fetchTradeHistory({ limit: '100', after });
     if (fills.length === 0) break;
-    await importFills(fills, existingOkxIds, result);
+    await importFills(fills, existingOkxIds, result, instance);
     after = fills[fills.length - 1]?.tradeId ?? '';
     if (fills.length < 100) break;
   }
@@ -250,7 +256,9 @@ export const syncTradesFromOkx = async (): Promise<OkxSyncResult> => {
   return result;
 };
 
-export const syncBalancesFromOkx = async (): Promise<boolean> => {
+export const syncBalancesFromOkx = async (
+  instance: TradingInstance = 'live',
+): Promise<boolean> => {
   const balance = await fetchAccountBalance();
   if (!balance) return false;
 
@@ -258,13 +266,16 @@ export const syncBalancesFromOkx = async (): Promise<boolean> => {
     const totalBal = Number(detail.bal);
     if (totalBal <= 0) continue;
 
-    await upsertAssetBalance({
-      asset: detail.ccy,
-      totalQuantity: totalBal,
-      avgBuyPrice: 0,
-      totalCost: 0,
-      lastSyncedAt: new Date().toISOString(),
-    });
+    await upsertAssetBalance(
+      {
+        asset: detail.ccy,
+        totalQuantity: totalBal,
+        avgBuyPrice: 0,
+        totalCost: 0,
+        lastSyncedAt: new Date().toISOString(),
+      },
+      instance,
+    );
   }
 
   return true;

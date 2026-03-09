@@ -4,6 +4,7 @@ export type TradeSide = 'buy' | 'sell';
 export type TradeSource = 'manual' | 'okx';
 export type GoalPeriodType = 'weekly' | 'monthly';
 export type TradingTab = 'overview' | 'trades' | 'analytics' | 'market' | 'ai' | 'settings';
+export type TradingInstance = 'live' | 'demo';
 
 // --- Persisted Entities ---
 

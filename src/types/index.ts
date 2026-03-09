@@ -17,6 +17,7 @@ export type {
   TradeSource,
   GoalPeriodType,
   TradingTab,
+  TradingInstance,
   Trade,
   AssetBalance,
   WatchlistItem,
@@ -53,3 +54,13 @@ export type {
   OkxSyncResult,
   OkxStoreCredentialsRequest,
 } from './okx';
+
+export type {
+  PortfolioSummary,
+  PortfolioHolding,
+  DiversificationAnalysis,
+  ConcentrationRisk,
+  AssetHoldingDuration,
+  PortfolioValuePoint,
+  PortfolioRiskMetrics,
+} from './portfolio';

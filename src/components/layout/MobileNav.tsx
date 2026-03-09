@@ -10,6 +10,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { useTradingInstance } from '@/hooks/useTradingInstance';
 
 interface MobileNavProps {
   onOpenAdvisor: () => void;
@@ -22,6 +23,8 @@ const mobileNavClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export const MobileNav: React.FC<MobileNavProps> = ({ onOpenAdvisor, onAddTransaction }) => {
+  const { instance, setInstance, isDemo } = useTradingInstance();
+
   return (
     <>
       {/* Mobile Header */}
@@ -30,6 +33,17 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onOpenAdvisor, onAddTransa
           <Wallet className="text-[var(--accent-primary)]" /> WealthFlow
         </div>
         <div className="flex items-center gap-2">
+          {/* Instance Chip */}
+          <button
+            onClick={() => setInstance(isDemo ? 'live' : 'demo')}
+            className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors ${
+              isDemo
+                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
+                : 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+            }`}
+          >
+            {instance}
+          </button>
           <ThemeToggle />
           <button
             onClick={onOpenAdvisor}

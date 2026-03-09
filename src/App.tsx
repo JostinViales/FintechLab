@@ -24,6 +24,7 @@ import { BulkTransactionForm } from '@/components/transactions/BulkTransactionFo
 import { FinancialAdvisor } from '@/components/ai/FinancialAdvisor';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
+import { TradingInstanceProvider } from '@/hooks/useTradingInstance';
 
 export interface AppContext {
   accounts: Account[];
@@ -65,7 +66,6 @@ const VIEW_TITLES: Record<string, { title: string; subtitle: string }> = {
     title: 'Portfolio',
     subtitle: 'Holdings, asset allocation, and performance.',
   },
-  '/goals': { title: 'Goals', subtitle: 'Savings targets and financial progress.' },
 };
 
 const App: React.FC = () => {
@@ -399,6 +399,7 @@ const App: React.FC = () => {
   }
 
   return (
+    <TradingInstanceProvider>
     <div className="min-h-screen bg-[var(--bg-primary)] flex">
       {/* Sidebar */}
       <Sidebar onOpenAdvisor={() => setIsAdvisorOpen(true)} onSignOut={handleSignOut} />
@@ -504,6 +505,7 @@ const App: React.FC = () => {
         </div>
       )}
     </div>
+    </TradingInstanceProvider>
   );
 };
 

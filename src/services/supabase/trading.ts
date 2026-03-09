@@ -7,6 +7,7 @@ import type {
   StrategyTag,
   TradeFilters,
   TradingLimit,
+  TradingInstance,
 } from '@/types';
 import { computeFifoMatches } from '@/lib/tradeMatching';
 
@@ -128,8 +129,15 @@ function mapStrategyTagRow(row: SupabaseStrategyTagRow): StrategyTag {
 
 // --- Trades CRUD ---
 
-export const loadTrades = async (filters?: TradeFilters): Promise<Trade[]> => {
-  let query = supabase.from('trades').select('*').order('traded_at', { ascending: false });
+export const loadTrades = async (
+  filters?: TradeFilters,
+  instance: TradingInstance = 'live',
+): Promise<Trade[]> => {
+  let query = supabase
+    .from('trades')
+    .select('*')
+    .eq('instance', instance)
+    .order('traded_at', { ascending: false });
 
   if (filters?.symbol) query = query.eq('symbol', filters.symbol);
   if (filters?.side) query = query.eq('side', filters.side);
@@ -144,6 +152,7 @@ export const loadTrades = async (filters?: TradeFilters): Promise<Trade[]> => {
 
 export const saveTrade = async (
   trade: Omit<Trade, 'id' | 'createdAt' | 'total'>,
+  instance: TradingInstance = 'live',
 ): Promise<Trade | null> => {
   const row = {
     symbol: trade.symbol,
@@ -159,6 +168,7 @@ export const saveTrade = async (
     okx_trade_id: trade.okxTradeId ?? null,
     okx_order_id: trade.okxOrderId ?? null,
     traded_at: trade.tradedAt,
+    instance,
   };
 
   const { data, error } = await supabase.from('trades').insert(row).select().single();
@@ -200,14 +210,21 @@ export const deleteTrade = async (id: string): Promise<void> => {
 
 // --- Asset Balances ---
 
-export const loadAssetBalances = async (): Promise<AssetBalance[]> => {
-  const { data, error } = await supabase.from('asset_balances').select('*').order('asset');
+export const loadAssetBalances = async (
+  instance: TradingInstance = 'live',
+): Promise<AssetBalance[]> => {
+  const { data, error } = await supabase
+    .from('asset_balances')
+    .select('*')
+    .eq('instance', instance)
+    .order('asset');
   if (error) console.error('Error loading asset balances:', error);
   return (data ?? []).map(mapAssetBalanceRow);
 };
 
 export const upsertAssetBalance = async (
   balance: Omit<AssetBalance, 'id'>,
+  instance: TradingInstance = 'live',
 ): Promise<AssetBalance | null> => {
   const row = {
     asset: balance.asset,
@@ -215,11 +232,12 @@ export const upsertAssetBalance = async (
     avg_buy_price: balance.avgBuyPrice,
     total_cost: balance.totalCost,
     last_synced_at: balance.lastSyncedAt ?? null,
+    instance,
   };
 
   const { data, error } = await supabase
     .from('asset_balances')
-    .upsert(row, { onConflict: 'asset' })
+    .upsert(row, { onConflict: 'asset,user_id,instance' })
     .select()
     .single();
 
@@ -230,25 +248,43 @@ export const upsertAssetBalance = async (
   return mapAssetBalanceRow(data);
 };
 
-export const clearAssetBalances = async (): Promise<void> => {
-  const { error } = await supabase.from('asset_balances').delete().neq('id', '');
+export const clearAssetBalances = async (
+  instance: TradingInstance = 'live',
+): Promise<void> => {
+  const { error } = await supabase
+    .from('asset_balances')
+    .delete()
+    .eq('instance', instance)
+    .neq('id', '');
   if (error) console.error('Error clearing asset balances:', error);
 };
 
 // --- Strategy Tags ---
 
-export const loadStrategyTags = async (): Promise<StrategyTag[]> => {
-  const { data, error } = await supabase.from('strategy_tags').select('*').order('name');
+export const loadStrategyTags = async (
+  instance: TradingInstance = 'live',
+): Promise<StrategyTag[]> => {
+  const { data, error } = await supabase
+    .from('strategy_tags')
+    .select('*')
+    .eq('instance', instance)
+    .order('name');
   if (error) console.error('Error loading strategy tags:', error);
   return (data ?? []).map(mapStrategyTagRow);
 };
 
 export const saveStrategyTag = async (
   tag: Omit<StrategyTag, 'id'>,
+  instance: TradingInstance = 'live',
 ): Promise<StrategyTag | null> => {
   const { data, error } = await supabase
     .from('strategy_tags')
-    .insert({ name: tag.name, color: tag.color, description: tag.description ?? null })
+    .insert({
+      name: tag.name,
+      color: tag.color,
+      description: tag.description ?? null,
+      instance,
+    })
     .select()
     .single();
 
@@ -266,16 +302,25 @@ export const deleteStrategyTag = async (id: string): Promise<void> => {
 
 // --- Watchlist ---
 
-export const loadWatchlist = async (): Promise<WatchlistItem[]> => {
-  const { data, error } = await supabase.from('watchlist').select('*').order('sort_order');
+export const loadWatchlist = async (
+  instance: TradingInstance = 'live',
+): Promise<WatchlistItem[]> => {
+  const { data, error } = await supabase
+    .from('watchlist')
+    .select('*')
+    .eq('instance', instance)
+    .order('sort_order');
   if (error) console.error('Error loading watchlist:', error);
   return (data ?? []).map(mapWatchlistRow);
 };
 
-export const addToWatchlist = async (symbol: string): Promise<WatchlistItem | null> => {
+export const addToWatchlist = async (
+  symbol: string,
+  instance: TradingInstance = 'live',
+): Promise<WatchlistItem | null> => {
   const { data, error } = await supabase
     .from('watchlist')
-    .insert({ symbol, sort_order: 0 })
+    .insert({ symbol, sort_order: 0, instance })
     .select()
     .single();
 
@@ -293,10 +338,13 @@ export const removeFromWatchlist = async (id: string): Promise<void> => {
 
 // --- Trading Goals ---
 
-export const loadTradingGoals = async (): Promise<TradingGoal[]> => {
+export const loadTradingGoals = async (
+  instance: TradingInstance = 'live',
+): Promise<TradingGoal[]> => {
   const { data, error } = await supabase
     .from('trading_goals')
     .select('*')
+    .eq('instance', instance)
     .order('created_at', { ascending: false });
 
   if (error) console.error('Error loading trading goals:', error);
@@ -305,6 +353,7 @@ export const loadTradingGoals = async (): Promise<TradingGoal[]> => {
 
 export const saveTradingGoal = async (
   goal: Omit<TradingGoal, 'id'>,
+  instance: TradingInstance = 'live',
 ): Promise<TradingGoal | null> => {
   const { data, error } = await supabase
     .from('trading_goals')
@@ -315,8 +364,9 @@ export const saveTradingGoal = async (
         target_pnl: goal.targetPnl,
         max_trades: goal.maxTrades ?? null,
         max_capital: goal.maxCapital ?? null,
+        instance,
       },
-      { onConflict: 'period_type,period_key' },
+      { onConflict: 'period_type,period_key,user_id,instance' },
     )
     .select()
     .single();
@@ -354,10 +404,13 @@ function mapTradingLimitRow(row: SupabaseTradingLimitRow): TradingLimit {
   };
 }
 
-export const loadTradingLimits = async (): Promise<TradingLimit[]> => {
+export const loadTradingLimits = async (
+  instance: TradingInstance = 'live',
+): Promise<TradingLimit[]> => {
   const { data, error } = await supabase
     .from('trading_limits')
     .select('*')
+    .eq('instance', instance)
     .order('period_type');
   if (error) console.error('Error loading trading limits:', error);
   return (data ?? []).map(mapTradingLimitRow);
@@ -365,6 +418,7 @@ export const loadTradingLimits = async (): Promise<TradingLimit[]> => {
 
 export const saveTradingLimit = async (
   limit: Omit<TradingLimit, 'id' | 'createdAt' | 'updatedAt'>,
+  instance: TradingInstance = 'live',
 ): Promise<TradingLimit | null> => {
   const { data, error } = await supabase
     .from('trading_limits')
@@ -376,8 +430,9 @@ export const saveTradingLimit = async (
         max_capital: limit.maxCapital ?? null,
         is_active: limit.isActive,
         updated_at: new Date().toISOString(),
+        instance,
       },
-      { onConflict: 'period_type' },
+      { onConflict: 'period_type,user_id,instance' },
     )
     .select()
     .single();
@@ -396,12 +451,11 @@ export const deleteTradingLimit = async (id: string): Promise<void> => {
 
 // --- FIFO P&L Matching ---
 
-/**
- * Recalculate realized P&L for all trades of a single symbol using FIFO matching.
- * Returns the number of trades updated.
- */
-export async function matchTradesForSymbol(symbol: string): Promise<number> {
-  const trades = await loadTrades({ symbol });
+export async function matchTradesForSymbol(
+  symbol: string,
+  instance: TradingInstance = 'live',
+): Promise<number> {
+  const trades = await loadTrades({ symbol }, instance);
   const updates = computeFifoMatches(trades);
 
   let updatedCount = 0;
@@ -420,12 +474,10 @@ export async function matchTradesForSymbol(symbol: string): Promise<number> {
   return updatedCount;
 }
 
-/**
- * Recalculate realized P&L for ALL trades across all symbols using FIFO matching.
- * Returns the number of trades updated.
- */
-export async function recalcAllPnl(): Promise<number> {
-  const trades = await loadTrades();
+export async function recalcAllPnl(
+  instance: TradingInstance = 'live',
+): Promise<number> {
+  const trades = await loadTrades(undefined, instance);
   const updates = computeFifoMatches(trades);
 
   let updatedCount = 0;
