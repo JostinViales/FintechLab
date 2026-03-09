@@ -12,6 +12,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { useTradingInstance } from '@/hooks/useTradingInstance';
 
 interface SidebarProps {
   onOpenAdvisor: () => void;
@@ -24,6 +25,8 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor, onSignOut }) => {
+  const { instance, setInstance } = useTradingInstance();
+
   return (
     <aside className="w-64 bg-[var(--bg-elevated)] text-[var(--text-secondary)] hidden md:flex flex-col fixed h-full z-10 border-r border-[var(--border-default)]">
       <div className="p-6">
@@ -52,9 +55,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor, onSignOut }) =>
             <span>Monthly Budget</span>
           </NavLink>
 
-          <div className="pt-4 pb-2">
-            <p className="text-xs uppercase tracking-wider text-[var(--text-muted)] px-4 mb-2">Coming Soon</p>
+          {/* Instance Switcher */}
+          <div className="pt-4 pb-2 px-2">
+            <div className="flex rounded-lg bg-[var(--bg-primary)] p-1 border border-[var(--border-default)]">
+              <button
+                onClick={() => setInstance('live')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  instance === 'live'
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                }`}
+              >
+                {instance === 'live' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                )}
+                Live
+              </button>
+              <button
+                onClick={() => setInstance('demo')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  instance === 'demo'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                }`}
+              >
+                Demo
+              </button>
+            </div>
           </div>
+
           <NavLink to="/trading" className={navLinkClass}>
             <CandlestickChart size={20} />
             <span>Trading</span>

@@ -6,10 +6,8 @@ import {
   storeCredentials,
   syncTradesFromOkx,
   syncBalancesFromOkx,
-  setDemoMode,
-  isDemoMode,
 } from '@/services/okx/client';
-import { okxWebSocket } from '@/services/okx/websocket';
+import { useTradingInstance } from '@/hooks/useTradingInstance';
 import type { OkxSyncResult } from '@/types/okx';
 
 interface OkxConnectionSettingsProps {
@@ -20,6 +18,8 @@ type ConnectionStatus = 'unknown' | 'testing' | 'connected' | 'error';
 type SyncStatus = 'idle' | 'syncing' | 'done' | 'error';
 
 export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ onSyncComplete }) => {
+  const { instance, isDemo } = useTradingInstance();
+
   // Credential inputs
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
@@ -27,9 +27,6 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [showPassphrase, setShowPassphrase] = useState(false);
-
-  // Demo mode
-  const [demo, setDemo] = useState(isDemoMode());
 
   // Status
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('unknown');
@@ -74,7 +71,7 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
     setTradeSyncStatus('syncing');
     setSyncResult(null);
 
-    const result = await syncTradesFromOkx();
+    const result = await syncTradesFromOkx(instance);
     setSyncResult(result);
     setTradeSyncStatus(result.errors.length > 0 ? 'error' : 'done');
     onSyncComplete();
@@ -82,55 +79,23 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
 
   const handleSyncBalances = async () => {
     setBalanceSyncStatus('syncing');
-    const success = await syncBalancesFromOkx();
+    const success = await syncBalancesFromOkx(instance);
     setBalanceSyncStatus(success ? 'done' : 'error');
     if (success) onSyncComplete();
   };
 
-  const handleToggleDemo = (enabled: boolean) => {
-    setDemo(enabled);
-    setDemoMode(enabled);
-    okxWebSocket.setDemoMode(enabled);
-    setConnectionStatus('unknown');
-  };
+  const instanceLabel = isDemo ? 'Demo' : 'Live';
+  const instanceColor = isDemo ? 'amber' : 'emerald';
 
   return (
     <div className="space-y-6">
-      {/* Trading Mode */}
-      <Card title="Trading Mode">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-[var(--text-primary)]">
-              {demo ? 'Demo (Paper) Trading' : 'Live Trading'}
-            </p>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              {demo
-                ? 'Using OKX simulated trading environment. No real funds at risk.'
-                : 'Connected to your live OKX account. Real funds will be used.'}
-            </p>
-          </div>
-          <button
-            onClick={() => handleToggleDemo(!demo)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              demo ? 'bg-amber-500' : 'bg-[var(--border-default)]'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-                demo ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-        {demo && (
-          <div className="mt-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <p className="text-xs text-amber-500">
-              Paper trading mode is active. Create demo API keys at{' '}
-              <span className="font-medium">OKX Demo Trading</span> page.
-            </p>
-          </div>
-        )}
-      </Card>
+      {/* Instance Badge */}
+      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-${instanceColor}-500/10 border border-${instanceColor}-500/20`}>
+        <span className={`w-2 h-2 rounded-full bg-${instanceColor}-500`} />
+        <span className={`text-xs font-semibold text-${instanceColor}-500`}>
+          Configuring: {instanceLabel}
+        </span>
+      </div>
 
       {/* Connection Status */}
       <Card title="OKX Connection">
@@ -172,6 +137,7 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
       {/* API Key Setup */}
       <Card title="API Keys">
         <p className="text-xs text-[var(--text-muted)] mb-4">
+          These credentials are for your <span className={`font-semibold text-${instanceColor}-500`}>{instanceLabel}</span> instance.
           Keys are stored server-side in encrypted Vault. They never touch the browser after setup.
         </p>
 

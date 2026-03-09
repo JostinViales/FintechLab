@@ -52,10 +52,19 @@ async function hmacSign(secret: string, message: string): Promise<string> {
 
 async function getCredentials(
   db: ReturnType<typeof createClient>,
+  userId: string,
+  demo: boolean = false,
 ): Promise<{ apiKey: string; secretKey: string; passphrase: string } | null> {
-  const { data, error } = await db
+  const adminDb = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+  );
+
+  const { data, error } = await adminDb
     .from('okx_credentials')
     .select('api_key, secret_key, passphrase')
+    .eq('user_id', userId)
+    .eq('instance', demo ? 'demo' : 'live')
     .limit(1)
     .maybeSingle();
 
@@ -72,6 +81,7 @@ async function handleStoreCredentials(
   db: ReturnType<typeof createClient>,
   body: ProxyRequestBody,
   cors: Record<string, string>,
+  userId: string,
 ): Promise<Response> {
   const { apiKey, secretKey, passphrase } = body;
   if (!apiKey || !secretKey || !passphrase) {
@@ -81,13 +91,42 @@ async function handleStoreCredentials(
     );
   }
 
-  // Upsert: delete user's existing credentials (RLS scopes to current user), then insert
-  await db.from('okx_credentials').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  // Use service role client to bypass RLS — user is already authenticated above
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!serviceRoleKey) {
+    console.error('SUPABASE_SERVICE_ROLE_KEY is not set');
+    return new Response(
+      JSON.stringify({ error: 'Server configuration error: missing service role key' }),
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
+    );
+  }
 
-  const { error } = await db.from('okx_credentials').insert({
+  const adminDb = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+
+  // Scope credentials to the specific instance
+  const instance = body.demo ? 'demo' : 'live';
+
+  // Upsert: delete this instance's credentials, then insert
+  const { error: deleteError } = await adminDb
+    .from('okx_credentials')
+    .delete()
+    .eq('user_id', userId)
+    .eq('instance', instance);
+
+  if (deleteError) {
+    console.error('Delete credentials error:', deleteError);
+  }
+
+  const { error } = await adminDb.from('okx_credentials').insert({
     api_key: apiKey,
     secret_key: secretKey,
     passphrase: passphrase,
+    user_id: userId,
+    instance,
   });
 
   if (error) {
@@ -107,6 +146,7 @@ async function handleProxyRequest(
   db: ReturnType<typeof createClient>,
   body: ProxyRequestBody,
   cors: Record<string, string>,
+  userId: string,
 ): Promise<Response> {
   const { endpoint, method, params, demo } = body;
 
@@ -124,10 +164,11 @@ async function handleProxyRequest(
     });
   }
 
-  const credentials = await getCredentials(db);
+  const credentials = await getCredentials(db, userId, demo);
   if (!credentials) {
+    const instanceLabel = demo ? 'Demo' : 'Live';
     return new Response(
-      JSON.stringify({ error: 'OKX credentials not configured. Add your API keys in Settings.' }),
+      JSON.stringify({ error: `No API keys configured for ${instanceLabel}. Set up in Settings.` }),
       { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
     );
   }
@@ -217,8 +258,8 @@ Deno.serve(async (req: Request) => {
   const body: ProxyRequestBody = await req.json();
 
   if (body.action === 'store-credentials') {
-    return handleStoreCredentials(db, body, corsHeaders);
+    return handleStoreCredentials(db, body, corsHeaders, user.id);
   }
 
-  return handleProxyRequest(db, body, corsHeaders);
+  return handleProxyRequest(db, body, corsHeaders, user.id);
 });

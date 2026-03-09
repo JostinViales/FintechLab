@@ -10,6 +10,7 @@ import {
   Brain,
   RefreshCw,
   CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import type {
   Trade,
@@ -52,7 +53,9 @@ import {
   computePnlTimeline,
   computeStrategyPerformance,
 } from '@/lib/tradingAnalytics';
+import { syncTradesFromOkx, syncBalancesFromOkx } from '@/services/okx/client';
 import { okxWebSocket } from '@/services/okx/websocket';
+import { useTradingInstance } from '@/hooks/useTradingInstance';
 import { Card } from '@/components/ui/Card';
 import { PnlSummaryCards } from '@/components/trading/PnlSummaryCards';
 import { TradeForm } from '@/components/trading/TradeForm';
@@ -89,6 +92,7 @@ const TABS: { id: TradingTab; label: string; icon: React.FC<{ size?: number }> }
 const STARTING_CAPITAL = 10000;
 
 export const TradingPage: React.FC = () => {
+  const { instance } = useTradingInstance();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [assetBalances, setAssetBalances] = useState<AssetBalance[]>([]);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -102,19 +106,38 @@ export const TradingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [recalcStatus, setRecalcStatus] = useState<'idle' | 'running' | 'done'>('idle');
   const [recalcCount, setRecalcCount] = useState(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
-  // --- Data Loading ---
+  // --- Data Loading (re-runs on instance change) ---
   useEffect(() => {
+    let cancelled = false;
+
     const fetchAll = async () => {
+      setLoading(true);
+      setSyncError(null);
+
+      // Auto-sync from OKX, then load all data
+      try {
+        await Promise.all([
+          syncTradesFromOkx(instance).catch(() => {}),
+          syncBalancesFromOkx(instance).catch(() => {}),
+        ]);
+      } catch {
+        // Sync failures are non-blocking — data will load from DB
+      }
+
       const [tradesData, balancesData, watchlistData, tagsData, goalsData, limitsData] =
         await Promise.all([
-          loadTrades(),
-          loadAssetBalances(),
-          loadWatchlist(),
-          loadStrategyTags(),
-          loadTradingGoals(),
-          loadTradingLimits(),
+          loadTrades(undefined, instance),
+          loadAssetBalances(instance),
+          loadWatchlist(instance),
+          loadStrategyTags(instance),
+          loadTradingGoals(instance),
+          loadTradingLimits(instance),
         ]);
+
+      if (cancelled) return;
+
       setTrades(tradesData);
       setAssetBalances(balancesData);
       setWatchlist(watchlistData);
@@ -124,7 +147,11 @@ export const TradingPage: React.FC = () => {
       setLoading(false);
     };
     fetchAll();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [instance]);
 
   // --- Computed ---
   const tradingStats = useMemo(() => computeTradingStats(trades), [trades]);
@@ -165,26 +192,32 @@ export const TradingPage: React.FC = () => {
   }, [watchlist, assetBalances]);
 
   // --- Asset Balance Recalculation ---
-  const recalcBalances = useCallback(async (updatedTrades: Trade[]) => {
-    const computed = computeAssetBalancesFromTrades(updatedTrades);
+  const recalcBalances = useCallback(
+    async (updatedTrades: Trade[]) => {
+      const computed = computeAssetBalancesFromTrades(updatedTrades);
 
-    if (computed.size === 0) {
-      await clearAssetBalances();
-      setAssetBalances([]);
-      return;
-    }
+      if (computed.size === 0) {
+        await clearAssetBalances(instance);
+        setAssetBalances([]);
+        return;
+      }
 
-    const promises = Array.from(computed.entries()).map(([asset, bal]) =>
-      upsertAssetBalance({
-        asset,
-        totalQuantity: bal.totalQuantity,
-        avgBuyPrice: bal.avgBuyPrice,
-        totalCost: bal.totalCost,
-      }),
-    );
-    const results = await Promise.all(promises);
-    setAssetBalances(results.filter((r): r is AssetBalance => r !== null));
-  }, []);
+      const promises = Array.from(computed.entries()).map(([asset, bal]) =>
+        upsertAssetBalance(
+          {
+            asset,
+            totalQuantity: bal.totalQuantity,
+            avgBuyPrice: bal.avgBuyPrice,
+            totalCost: bal.totalCost,
+          },
+          instance,
+        ),
+      );
+      const results = await Promise.all(promises);
+      setAssetBalances(results.filter((r): r is AssetBalance => r !== null));
+    },
+    [instance],
+  );
 
   // --- Trade Handlers ---
   const handleSaveTrade = async (data: Omit<Trade, 'id' | 'createdAt' | 'total'>) => {
@@ -195,13 +228,13 @@ export const TradingPage: React.FC = () => {
       if (!updated) return;
       savedSymbol = updated.symbol;
     } else {
-      const saved = await saveTrade(data);
+      const saved = await saveTrade(data, instance);
       if (!saved) return;
       savedSymbol = saved.symbol;
     }
 
-    await matchTradesForSymbol(savedSymbol);
-    const refreshedTrades = await loadTrades();
+    await matchTradesForSymbol(savedSymbol, instance);
+    const refreshedTrades = await loadTrades(undefined, instance);
     setTrades(refreshedTrades);
     setEditingTrade(null);
     await recalcBalances(refreshedTrades);
@@ -213,17 +246,17 @@ export const TradingPage: React.FC = () => {
     await deleteTradeApi(id);
 
     if (deletedTrade) {
-      await matchTradesForSymbol(deletedTrade.symbol);
+      await matchTradesForSymbol(deletedTrade.symbol, instance);
     }
 
-    const refreshedTrades = await loadTrades();
+    const refreshedTrades = await loadTrades(undefined, instance);
     setTrades(refreshedTrades);
     await recalcBalances(refreshedTrades);
   };
 
   // --- Strategy Tag Handlers ---
   const handleSaveStrategyTag = async (tag: Omit<StrategyTag, 'id'>) => {
-    const saved = await saveStrategyTag(tag);
+    const saved = await saveStrategyTag(tag, instance);
     if (saved) {
       setStrategyTags((prev) => [...prev, saved].sort((a, b) => a.name.localeCompare(b.name)));
     }
@@ -236,7 +269,7 @@ export const TradingPage: React.FC = () => {
 
   // --- Trading Goal Handler ---
   const handleSaveTradingGoal = async (goal: Omit<TradingGoal, 'id'>) => {
-    const saved = await saveTradingGoal(goal);
+    const saved = await saveTradingGoal(goal, instance);
     if (saved) {
       setTradingGoals((prev) => {
         const filtered = prev.filter(
@@ -251,7 +284,7 @@ export const TradingPage: React.FC = () => {
   const handleSaveTradingLimit = async (
     limit: Omit<TradingLimit, 'id' | 'createdAt' | 'updatedAt'>,
   ) => {
-    const saved = await saveTradingLimit(limit);
+    const saved = await saveTradingLimit(limit, instance);
     if (saved) {
       setTradingLimits((prev) => {
         const filtered = prev.filter((l) => l.periodType !== saved.periodType);
@@ -267,7 +300,7 @@ export const TradingPage: React.FC = () => {
 
   // --- Watchlist Handlers ---
   const handleAddToWatchlist = async (symbol: string) => {
-    const item = await addToWatchlist(symbol);
+    const item = await addToWatchlist(symbol, instance);
     if (item) setWatchlist((prev) => [...prev, item]);
   };
 
@@ -279,8 +312,8 @@ export const TradingPage: React.FC = () => {
   // --- Recalculate All P&L ---
   const handleRecalcAllPnl = async () => {
     setRecalcStatus('running');
-    const count = await recalcAllPnl();
-    const refreshedTrades = await loadTrades();
+    const count = await recalcAllPnl(instance);
+    const refreshedTrades = await loadTrades(undefined, instance);
     setTrades(refreshedTrades);
     await recalcBalances(refreshedTrades);
     setRecalcCount(count);
@@ -290,8 +323,11 @@ export const TradingPage: React.FC = () => {
 
   // --- OKX Sync Handler ---
   const handleSyncComplete = async () => {
-    await recalcAllPnl();
-    const [tradesData, balancesData] = await Promise.all([loadTrades(), loadAssetBalances()]);
+    await recalcAllPnl(instance);
+    const [tradesData, balancesData] = await Promise.all([
+      loadTrades(undefined, instance),
+      loadAssetBalances(instance),
+    ]);
     setTrades(tradesData);
     setAssetBalances(balancesData);
   };
@@ -308,6 +344,14 @@ export const TradingPage: React.FC = () => {
 
   return (
     <div className="animate-in fade-in duration-300">
+      {/* Sync Error Banner */}
+      {syncError && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
+          <AlertCircle size={16} className="text-amber-500 shrink-0" />
+          <p className="text-sm text-amber-500">{syncError}</p>
+        </div>
+      )}
+
       {/* Tab Navigation */}
       <div className="flex gap-1 mb-6 border-b border-[var(--border-default)] overflow-x-auto">
         {TABS.map((tab) => (
