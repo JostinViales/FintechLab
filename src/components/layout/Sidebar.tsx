@@ -8,7 +8,6 @@ import {
   PieChart,
   BarChart3,
   TrendingUp,
-  Target,
   CandlestickChart,
   LogOut,
 } from 'lucide-react';
@@ -21,14 +20,14 @@ interface SidebarProps {
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-    isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'
+    isActive ? 'bg-[var(--bg-tertiary)] text-white' : 'hover:bg-[var(--bg-tertiary)]/50'
   }`;
 
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor, onSignOut }) => {
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 hidden md:flex flex-col fixed h-full z-10">
+    <aside className="w-64 bg-[var(--bg-elevated)] text-[var(--text-secondary)] hidden md:flex flex-col fixed h-full z-10 border-r border-[var(--border-default)]">
       <div className="p-6">
-        <div className="flex items-center gap-3 text-white mb-8">
+        <div className="flex items-center gap-3 text-[var(--text-primary)] mb-8">
           <div className="bg-indigo-600 p-2 rounded-lg">
             <Wallet size={24} />
           </div>
@@ -54,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor, onSignOut }) =>
           </NavLink>
 
           <div className="pt-4 pb-2">
-            <p className="text-xs uppercase tracking-wider text-slate-500 px-4 mb-2">Coming Soon</p>
+            <p className="text-xs uppercase tracking-wider text-[var(--text-muted)] px-4 mb-2">Coming Soon</p>
           </div>
           <NavLink to="/trading" className={navLinkClass}>
             <CandlestickChart size={20} />
@@ -64,14 +63,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor, onSignOut }) =>
             <TrendingUp size={20} />
             <span>Portfolio</span>
           </NavLink>
-          <NavLink to="/goals" className={navLinkClass}>
-            <Target size={20} />
-            <span>Goals</span>
-          </NavLink>
-
           <button
             onClick={onOpenAdvisor}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded-lg transition-colors text-emerald-400 mt-4"
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors text-[var(--accent-success)] mt-4"
           >
             <Sparkles size={20} />
             <span>AI Advisor</span>
@@ -79,16 +73,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAdvisor, onSignOut }) =>
         </nav>
       </div>
 
-      <div className="mt-auto p-6 border-t border-slate-800 space-y-3">
+      <div className="mt-auto p-6 border-t border-[var(--border-default)] space-y-3">
         <button
           onClick={onSignOut}
-          className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent-danger)] hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
         >
           <LogOut size={16} />
           <span>Sign Out</span>
         </button>
         <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-500">&copy; 2024 WealthFlow</p>
+          <p className="text-xs text-[var(--text-muted)]">&copy; 2024 WealthFlow</p>
           <ThemeToggle />
         </div>
       </div>

@@ -34,25 +34,27 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({ accounts, className 
     <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${className}`}>
       {/* Bar Chart: Account Distribution */}
       <div className="h-64">
-        <h4 className="text-sm font-medium text-slate-500 mb-4 text-center">
+        <h4 className="text-sm font-medium text-[var(--text-secondary)] mb-4 text-center">
           Net Worth by Account
         </h4>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
             <XAxis
               dataKey="name"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: '#64748b' }}
+              tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
             />
-            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
             <Tooltip
-              cursor={{ fill: '#f1f5f9' }}
+              cursor={{ fill: 'var(--bg-tertiary)' }}
               contentStyle={{
                 borderRadius: '8px',
-                border: 'none',
-                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                border: '1px solid var(--border-default)',
+                boxShadow: 'var(--shadow-md)',
+                backgroundColor: 'var(--chart-tooltip-bg)',
+                color: 'var(--text-primary)',
               }}
               formatter={(value) => [`$${(value as number).toLocaleString()}`, 'Balance']}
             />
@@ -67,7 +69,7 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({ accounts, className 
 
       {/* Pie Chart: Allocation (Assets Only) */}
       <div className="h-64">
-        <h4 className="text-sm font-medium text-slate-500 mb-4 text-center">Asset Allocation</h4>
+        <h4 className="text-sm font-medium text-[var(--text-secondary)] mb-4 text-center">Asset Allocation</h4>
         {assetData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -87,8 +89,10 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({ accounts, className 
               <Tooltip
                 contentStyle={{
                   borderRadius: '8px',
-                  border: 'none',
-                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                  border: '1px solid var(--border-default)',
+                  boxShadow: 'var(--shadow-md)',
+                  backgroundColor: 'var(--chart-tooltip-bg)',
+                  color: 'var(--text-primary)',
                 }}
                 formatter={(value) => [`$${(value as number).toLocaleString()}`, 'Value']}
               />
@@ -96,7 +100,7 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({ accounts, className 
             </PieChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+          <div className="flex items-center justify-center h-full text-[var(--text-muted)] text-sm">
             No positive assets to display
           </div>
         )}

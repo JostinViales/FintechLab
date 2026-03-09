@@ -143,13 +143,13 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
     <div className="space-y-6">
       {/* Month Picker */}
       <div className="flex items-center justify-center mb-6">
-        <div className="flex items-center bg-white border border-slate-200 rounded-lg px-4 py-2 shadow-sm">
-          <Calendar size={20} className="text-slate-400 mr-2" />
+        <div className="flex items-center bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg px-4 py-2 shadow-sm">
+          <Calendar size={20} className="text-[var(--text-muted)] mr-2" />
           <input
             type="month"
             value={selectedMonth}
             onChange={(e) => onMonthChange(e.target.value)}
-            className="text-lg font-semibold text-slate-800 outline-none bg-transparent cursor-pointer"
+            className="text-lg font-semibold text-[var(--text-primary)] outline-none bg-transparent cursor-pointer"
           />
         </div>
       </div>
@@ -157,17 +157,17 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-t-4 border-indigo-500">
-          <p className="text-sm font-medium text-slate-500">Monthly Budget</p>
-          <h3 className="text-2xl font-bold text-slate-900">${totalBudget.toLocaleString()}</h3>
+          <p className="text-sm font-medium text-[var(--text-secondary)]">Monthly Budget</p>
+          <h3 className="text-2xl font-bold text-[var(--text-primary)]">${totalBudget.toLocaleString()}</h3>
         </Card>
         <Card className="border-t-4 border-red-500">
-          <p className="text-sm font-medium text-slate-500">Spent This Month</p>
-          <h3 className="text-2xl font-bold text-slate-900">${totalSpent.toLocaleString()}</h3>
+          <p className="text-sm font-medium text-[var(--text-secondary)]">Spent This Month</p>
+          <h3 className="text-2xl font-bold text-[var(--text-primary)]">${totalSpent.toLocaleString()}</h3>
         </Card>
         <Card className="border-t-4 border-emerald-500">
-          <p className="text-sm font-medium text-slate-500">Remaining</p>
+          <p className="text-sm font-medium text-[var(--text-secondary)]">Remaining</p>
           <h3
-            className={`text-2xl font-bold ${totalBudget - totalSpent >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+            className={`text-2xl font-bold ${totalBudget - totalSpent >= 0 ? 'text-[var(--accent-success)]' : 'text-[var(--accent-danger)]'}`}
           >
             ${(totalBudget - totalSpent).toLocaleString()}
           </h3>
@@ -181,7 +181,7 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
           <div className="flex flex-col md:flex-row gap-4 justify-between">
             <div className="relative flex-1 max-w-md">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
                 size={18}
               />
               <input
@@ -189,14 +189,14 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                 placeholder="Search categories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
               />
             </div>
             <div className="flex flex-wrap gap-2">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortField)}
-                className="px-3 py-2 rounded-lg border border-slate-200 bg-white focus:outline-none text-sm"
+                className="px-3 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none text-sm"
               >
                 <option value="name">Sort: Name</option>
                 <option value="budget">Sort: Budget (High-Low)</option>
@@ -206,7 +206,7 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                className="px-3 py-2 rounded-lg border border-slate-200 bg-white focus:outline-none text-sm"
+                className="px-3 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none text-sm"
               >
                 <option value="all">All Status</option>
                 <option value="over">Over Budget</option>
@@ -223,7 +223,7 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   placeholder="Category Name"
-                  className="px-3 py-1 text-sm border border-slate-300 rounded focus:border-indigo-500 outline-none"
+                  className="px-3 py-1 text-sm border border-[var(--border-strong)] bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded focus:border-[var(--accent-primary)] outline-none"
                   autoFocus
                 />
                 <button
@@ -234,7 +234,7 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                 </button>
                 <button
                   onClick={() => setIsAdding(false)}
-                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
+                  className="p-1 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] rounded hover:bg-[var(--border-default)]"
                 >
                   <X size={18} />
                 </button>
@@ -253,18 +253,18 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
             {filteredStats.map((cat) => (
               <div
                 key={cat.id}
-                className="relative p-3 rounded-lg bg-slate-50 border border-slate-100 hover:shadow-sm transition-shadow"
+                className="relative p-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] hover:shadow-sm transition-shadow"
               >
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-lg text-slate-800">{cat.name}</span>
+                    <span className="font-bold text-lg text-[var(--text-primary)]">{cat.name}</span>
                     {cat.percent > 100 && <AlertCircle size={16} className="text-red-500" />}
                   </div>
 
                   <div className="flex items-center gap-4 text-sm">
                     <button
                       onClick={() => onDeleteCategory(cat.id)}
-                      className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                      className="text-[var(--text-muted)] hover:text-[var(--accent-danger)] transition-colors p-1"
                       title="Delete Category"
                     >
                       <Trash2 size={16} />
@@ -273,14 +273,14 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                 </div>
 
                 <div className="flex justify-between items-end mb-1">
-                  <div className="text-sm text-slate-600">
+                  <div className="text-sm text-[var(--text-secondary)]">
                     Spent:{' '}
-                    <span className="font-semibold text-slate-900">
+                    <span className="font-semibold text-[var(--text-primary)]">
                       ${cat.spent.toLocaleString()}
                     </span>
                   </div>
                   <div className="text-sm flex flex-col items-end">
-                    <span className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-1">
+                    <span className="text-xs text-[var(--text-muted)] uppercase tracking-wide font-medium mb-1">
                       Monthly Limit
                     </span>
                     {editingId === cat.id ? (
@@ -289,18 +289,18 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                           type="number"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
-                          className="w-28 px-2 py-1 border border-indigo-300 rounded text-right outline-none bg-white font-semibold"
+                          className="w-28 px-2 py-1 border border-[var(--accent-primary)] rounded text-right outline-none bg-[var(--bg-secondary)] text-[var(--text-primary)] font-semibold"
                           autoFocus
                         />
                         <button
                           onClick={() => saveEdit(cat)}
-                          className="text-indigo-600 hover:bg-indigo-50 p-1 rounded"
+                          className="text-[var(--accent-primary)] hover:bg-[var(--accent-primary-light)] p-1 rounded"
                         >
                           <Check size={16} />
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
-                          className="text-red-500 hover:bg-red-50 p-1 rounded"
+                          className="text-[var(--accent-danger)] hover:bg-[var(--accent-danger-light)] p-1 rounded"
                         >
                           <X size={16} />
                         </button>
@@ -310,7 +310,7 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                         className="flex items-center gap-2 group cursor-pointer"
                         onClick={() => startEditing(cat)}
                       >
-                        <span className="font-bold text-lg text-slate-900 border-b border-transparent group-hover:border-slate-300 transition-colors">
+                        <span className="font-bold text-lg text-[var(--text-primary)] border-b border-transparent group-hover:border-[var(--border-strong)] transition-colors">
                           ${cat.budget.toLocaleString()}
                         </span>
                         <Pencil
@@ -324,7 +324,7 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
 
                 {/* Default Budget Display */}
                 <div className="flex justify-end mb-1">
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-[var(--text-muted)]">
                     Default:
                     {editingDefaultId === cat.id ? (
                       <span className="inline-flex items-center gap-1 ml-1">
@@ -332,25 +332,25 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                           type="number"
                           value={editDefaultValue}
                           onChange={(e) => setEditDefaultValue(e.target.value)}
-                          className="w-20 px-1 py-0.5 border border-indigo-300 rounded text-right outline-none bg-white text-xs"
+                          className="w-20 px-1 py-0.5 border border-[var(--accent-primary)] rounded text-right outline-none bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs"
                           autoFocus
                         />
                         <button
                           onClick={() => saveDefaultEdit(cat)}
-                          className="text-indigo-600 hover:bg-indigo-50 p-0.5 rounded"
+                          className="text-[var(--accent-primary)] hover:bg-[var(--accent-primary-light)] p-0.5 rounded"
                         >
                           <Check size={12} />
                         </button>
                         <button
                           onClick={() => setEditingDefaultId(null)}
-                          className="text-red-500 hover:bg-red-50 p-0.5 rounded"
+                          className="text-[var(--accent-danger)] hover:bg-[var(--accent-danger-light)] p-0.5 rounded"
                         >
                           <X size={12} />
                         </button>
                       </span>
                     ) : (
                       <span
-                        className="ml-1 cursor-pointer hover:text-slate-600 hover:underline"
+                        className="ml-1 cursor-pointer hover:text-[var(--text-secondary)] hover:underline"
                         onClick={() => startEditingDefault(cat)}
                       >
                         ${cat.defaultMonthlyBudget.toLocaleString()}
@@ -360,7 +360,7 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                 </div>
 
                 {/* Progress Bar */}
-                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-2 w-full bg-[var(--bg-primary)] rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       cat.percent > 100
@@ -374,10 +374,10 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
                 </div>
 
                 <div className="flex justify-between mt-1 text-xs font-medium">
-                  <span className={`${cat.percent > 100 ? 'text-red-600' : 'text-slate-500'}`}>
+                  <span className={`${cat.percent > 100 ? 'text-[var(--accent-danger)]' : 'text-[var(--text-secondary)]'}`}>
                     {cat.percent.toFixed(1)}% Used
                   </span>
-                  <span className="text-slate-500">
+                  <span className="text-[var(--text-secondary)]">
                     Remaining: ${cat.remaining.toLocaleString()}
                   </span>
                 </div>
@@ -385,7 +385,7 @@ export const MonthlyBudget: React.FC<MonthlyBudgetProps> = ({
             ))}
 
             {filteredStats.length === 0 && (
-              <div className="text-center py-8 text-slate-400">
+              <div className="text-center py-8 text-[var(--text-muted)]">
                 {stats.length === 0
                   ? 'No categories defined. Add one to start budgeting.'
                   : 'No categories match your filters.'}
