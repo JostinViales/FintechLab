@@ -20,6 +20,8 @@ const WHITELISTED_ENDPOINTS = new Set([
   '/api/v5/trade/fills',
   '/api/v5/trade/orders-history-archive',
   '/api/v5/account/balance',
+  '/api/v5/asset/balances',
+  '/api/v5/finance/savings/balance',
   '/api/v5/market/ticker',
   '/api/v5/market/tickers',
 ]);

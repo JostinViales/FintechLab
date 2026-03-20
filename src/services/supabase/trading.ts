@@ -8,8 +8,17 @@ import type {
   TradeFilters,
   TradingLimit,
   TradingInstance,
+  OkxAccountType,
 } from '@/types';
 import { computeFifoMatches } from '@/lib/tradeMatching';
+
+async function getCurrentUserId(): Promise<string> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user?.id) throw new Error('Not authenticated');
+  return session.user.id;
+}
 
 // --- Row Types (snake_case from Supabase) ---
 
@@ -39,6 +48,7 @@ interface SupabaseAssetBalanceRow {
   avg_buy_price: number;
   total_cost: number;
   last_synced_at: string | null;
+  account_type: string;
 }
 
 interface SupabaseWatchlistRow {
@@ -96,6 +106,7 @@ function mapAssetBalanceRow(row: SupabaseAssetBalanceRow): AssetBalance {
     avgBuyPrice: Number(row.avg_buy_price),
     totalCost: Number(row.total_cost),
     lastSyncedAt: row.last_synced_at ?? undefined,
+    accountType: (row.account_type as OkxAccountType) ?? 'trading',
   };
 }
 
@@ -154,6 +165,7 @@ export const saveTrade = async (
   trade: Omit<Trade, 'id' | 'createdAt' | 'total'>,
   instance: TradingInstance = 'live',
 ): Promise<Trade | null> => {
+  const userId = await getCurrentUserId();
   const row = {
     symbol: trade.symbol,
     side: trade.side,
@@ -169,6 +181,7 @@ export const saveTrade = async (
     okx_order_id: trade.okxOrderId ?? null,
     traded_at: trade.tradedAt,
     instance,
+    user_id: userId,
   };
 
   const { data, error } = await supabase.from('trades').insert(row).select().single();
@@ -226,18 +239,21 @@ export const upsertAssetBalance = async (
   balance: Omit<AssetBalance, 'id'>,
   instance: TradingInstance = 'live',
 ): Promise<AssetBalance | null> => {
+  const userId = await getCurrentUserId();
   const row = {
     asset: balance.asset,
     total_quantity: balance.totalQuantity,
     avg_buy_price: balance.avgBuyPrice,
     total_cost: balance.totalCost,
     last_synced_at: balance.lastSyncedAt ?? null,
+    account_type: balance.accountType,
     instance,
+    user_id: userId,
   };
 
   const { data, error } = await supabase
     .from('asset_balances')
-    .upsert(row, { onConflict: 'asset,user_id,instance' })
+    .upsert(row, { onConflict: 'asset,user_id,instance,account_type' })
     .select()
     .single();
 
@@ -257,6 +273,19 @@ export const clearAssetBalances = async (
     .eq('instance', instance)
     .neq('id', '');
   if (error) console.error('Error clearing asset balances:', error);
+};
+
+export const clearAssetBalancesByType = async (
+  accountType: OkxAccountType,
+  instance: TradingInstance = 'live',
+): Promise<void> => {
+  const { error } = await supabase
+    .from('asset_balances')
+    .delete()
+    .eq('instance', instance)
+    .eq('account_type', accountType)
+    .neq('id', '');
+  if (error) console.error('Error clearing asset balances by type:', error);
 };
 
 // --- Strategy Tags ---
@@ -355,6 +384,7 @@ export const saveTradingGoal = async (
   goal: Omit<TradingGoal, 'id'>,
   instance: TradingInstance = 'live',
 ): Promise<TradingGoal | null> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('trading_goals')
     .upsert(
@@ -365,6 +395,7 @@ export const saveTradingGoal = async (
         max_trades: goal.maxTrades ?? null,
         max_capital: goal.maxCapital ?? null,
         instance,
+        user_id: userId,
       },
       { onConflict: 'period_type,period_key,user_id,instance' },
     )
@@ -420,6 +451,7 @@ export const saveTradingLimit = async (
   limit: Omit<TradingLimit, 'id' | 'createdAt' | 'updatedAt'>,
   instance: TradingInstance = 'live',
 ): Promise<TradingLimit | null> => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('trading_limits')
     .upsert(
@@ -431,6 +463,7 @@ export const saveTradingLimit = async (
         is_active: limit.isActive,
         updated_at: new Date().toISOString(),
         instance,
+        user_id: userId,
       },
       { onConflict: 'period_type,user_id,instance' },
     )

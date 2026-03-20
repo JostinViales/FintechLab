@@ -79,6 +79,27 @@ export interface OkxWsSubscription {
   args: Array<{ channel: string; instId: string }>;
 }
 
+// --- Funding Account Balance (GET /api/v5/asset/balances) ---
+
+export interface OkxFundingBalance {
+  ccy: string;
+  bal: string;
+  availBal: string;
+  frozenBal: string;
+}
+
+// --- Simple Earn / Savings Balance (GET /api/v5/finance/savings/balance) ---
+
+export interface OkxSavingsBalance {
+  ccy: string;
+  amt: string;
+  earnings: string;
+  rate: string;
+  loanAmt: string;
+  pendingAmt: string;
+  redemptAmt: string;
+}
+
 // --- Sync Result ---
 
 export interface OkxSyncResult {

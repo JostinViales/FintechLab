@@ -1,7 +1,22 @@
-import React from 'react';
-import type { AssetBalance } from '@/types';
+import React, { useState } from 'react';
+import type { AssetBalance, OkxAccountType } from '@/types';
 import type { OkxTicker } from '@/types/okx';
 import { formatCurrency, formatCrypto, formatPercent, formatPnl, formatPnlPct } from '@/lib/format';
+
+type AccountTypeFilter = 'all' | OkxAccountType;
+
+const ACCOUNT_TYPE_FILTERS: { id: AccountTypeFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'trading', label: 'Trading' },
+  { id: 'funding', label: 'Funding' },
+  { id: 'earn', label: 'Earn' },
+];
+
+const ACCOUNT_TYPE_COLORS: Record<OkxAccountType, string> = {
+  trading: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
+  funding: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+  earn: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
+};
 
 interface AssetBalancesTableProps {
   balances: AssetBalance[];
@@ -9,10 +24,17 @@ interface AssetBalancesTableProps {
 }
 
 export const AssetBalancesTable: React.FC<AssetBalancesTableProps> = ({ balances, livePrices }) => {
-  const totalCost = balances.reduce((sum, b) => sum + b.totalCost, 0);
+  const [activeFilter, setActiveFilter] = useState<AccountTypeFilter>('all');
+
+  const filtered =
+    activeFilter === 'all' ? balances : balances.filter((b) => b.accountType === activeFilter);
+
+  const hasMultipleTypes = new Set(balances.map((b) => b.accountType)).size > 1;
+
+  const totalCost = filtered.reduce((sum, b) => sum + b.totalCost, 0);
   const hasLivePrices = livePrices && livePrices.size > 0;
 
-  const enriched = balances.map((b) => {
+  const enriched = filtered.map((b) => {
     const ticker = livePrices?.get(b.asset + '-USDT');
     const currentPrice = ticker ? Number(ticker.last) : undefined;
     const currentValue = currentPrice ? b.totalQuantity * currentPrice : undefined;
@@ -45,6 +67,25 @@ export const AssetBalancesTable: React.FC<AssetBalancesTableProps> = ({ balances
 
   return (
     <>
+      {/* Account Type Filter Tabs */}
+      {hasMultipleTypes && (
+        <div className="flex gap-1 mb-4">
+          {ACCOUNT_TYPE_FILTERS.map((filter) => (
+            <button
+              key={filter.id}
+              onClick={() => setActiveFilter(filter.id)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                activeFilter === filter.id
+                  ? 'bg-[var(--accent-primary)] text-white'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Desktop Table */}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full">
@@ -82,9 +123,18 @@ export const AssetBalancesTable: React.FC<AssetBalancesTableProps> = ({ balances
           </thead>
           <tbody className="divide-y divide-[var(--border-subtle)]">
             {enriched.map((b) => (
-              <tr key={b.asset} className="transition-colors hover:bg-[var(--bg-tertiary)]">
+              <tr key={`${b.asset}-${b.accountType}`} className="transition-colors hover:bg-[var(--bg-tertiary)]">
                 <td className="whitespace-nowrap px-4 py-4 text-sm font-bold text-[var(--text-primary)]">
-                  {b.asset}
+                  <span className="flex items-center gap-2">
+                    {b.asset}
+                    {hasMultipleTypes && (
+                      <span
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${ACCOUNT_TYPE_COLORS[b.accountType]}`}
+                      >
+                        {b.accountType}
+                      </span>
+                    )}
+                  </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-4 text-right text-sm text-[var(--text-secondary)]">
                   {formatCrypto(b.totalQuantity)}
@@ -173,9 +223,18 @@ export const AssetBalancesTable: React.FC<AssetBalancesTableProps> = ({ balances
       {/* Mobile Card View */}
       <div className="divide-y divide-[var(--border-subtle)] md:hidden">
         {enriched.map((b) => (
-          <div key={b.asset} className="py-3">
+          <div key={`${b.asset}-${b.accountType}`} className="py-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="font-bold text-[var(--text-primary)]">{b.asset}</span>
+              <span className="flex items-center gap-2 font-bold text-[var(--text-primary)]">
+                {b.asset}
+                {hasMultipleTypes && (
+                  <span
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${ACCOUNT_TYPE_COLORS[b.accountType]}`}
+                  >
+                    {b.accountType}
+                  </span>
+                )}
+              </span>
               <span className="text-sm text-[var(--text-primary)]">
                 {formatCurrency(b.totalCost)}
               </span>

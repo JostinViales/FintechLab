@@ -3,6 +3,8 @@ import type {
   OkxApiResponse,
   OkxFill,
   OkxAccountBalance,
+  OkxFundingBalance,
+  OkxSavingsBalance,
   OkxTicker,
   OkxSyncResult,
 } from '@/types/okx';
@@ -144,6 +146,31 @@ export const fetchTickers = async (instType: string = 'SPOT'): Promise<OkxTicker
   return response.data;
 };
 
+export const fetchFundingBalances = async (): Promise<OkxFundingBalance[]> => {
+  const response = await callOkxProxy<OkxFundingBalance>('/api/v5/asset/balances', 'GET');
+
+  if (!response || response.code !== '0') {
+    console.error('Failed to fetch funding balances:', response?.msg);
+    return [];
+  }
+
+  return response.data;
+};
+
+export const fetchSavingsBalances = async (): Promise<OkxSavingsBalance[]> => {
+  const response = await callOkxProxy<OkxSavingsBalance>(
+    '/api/v5/finance/savings/balance',
+    'GET',
+  );
+
+  if (!response || response.code !== '0') {
+    console.error('Failed to fetch savings balances:', response?.msg);
+    return [];
+  }
+
+  return response.data;
+};
+
 export const testConnection = async (): Promise<boolean> => {
   const balance = await fetchAccountBalance();
   return balance !== null;
@@ -155,9 +182,10 @@ export const storeCredentials = async (
   apiKey: string,
   secretKey: string,
   passphrase: string,
+  demo?: boolean,
 ): Promise<boolean> => {
   const { error } = await supabase.functions.invoke('okx-proxy', {
-    body: { action: 'store-credentials', apiKey, secretKey, passphrase, demo: demoMode },
+    body: { action: 'store-credentials', apiKey, secretKey, passphrase, demo: demo ?? demoMode },
   });
 
   if (error) {
@@ -259,10 +287,20 @@ export const syncTradesFromOkx = async (
 export const syncBalancesFromOkx = async (
   instance: TradingInstance = 'live',
 ): Promise<boolean> => {
-  const balance = await fetchAccountBalance();
-  if (!balance) return false;
+  const now = new Date().toISOString();
 
-  for (const detail of balance.details) {
+  // Fetch all three account types in parallel
+  const [tradingBalance, fundingBalances, savingsBalances] = await Promise.all([
+    fetchAccountBalance(),
+    fetchFundingBalances().catch(() => [] as OkxFundingBalance[]),
+    fetchSavingsBalances().catch(() => [] as OkxSavingsBalance[]),
+  ]);
+
+  // At minimum, trading balance must succeed
+  if (!tradingBalance) return false;
+
+  // Upsert Trading account balances
+  for (const detail of tradingBalance.details) {
     const totalBal = Number(detail.bal);
     if (totalBal <= 0) continue;
 
@@ -272,7 +310,44 @@ export const syncBalancesFromOkx = async (
         totalQuantity: totalBal,
         avgBuyPrice: 0,
         totalCost: 0,
-        lastSyncedAt: new Date().toISOString(),
+        lastSyncedAt: now,
+        accountType: 'trading',
+      },
+      instance,
+    );
+  }
+
+  // Upsert Funding account balances
+  for (const fb of fundingBalances) {
+    const totalBal = Number(fb.bal);
+    if (totalBal <= 0) continue;
+
+    await upsertAssetBalance(
+      {
+        asset: fb.ccy,
+        totalQuantity: totalBal,
+        avgBuyPrice: 0,
+        totalCost: 0,
+        lastSyncedAt: now,
+        accountType: 'funding',
+      },
+      instance,
+    );
+  }
+
+  // Upsert Earn (Simple Earn / Savings) balances
+  for (const sb of savingsBalances) {
+    const totalAmt = Number(sb.amt);
+    if (totalAmt <= 0) continue;
+
+    await upsertAssetBalance(
+      {
+        asset: sb.ccy,
+        totalQuantity: totalAmt,
+        avgBuyPrice: 0,
+        totalCost: 0,
+        lastSyncedAt: now,
+        accountType: 'earn',
       },
       instance,
     );

@@ -7,7 +7,7 @@ import { BudgetPage } from '@/features/budget/BudgetPage';
 import { MonthlyOverviewPage } from '@/features/budget/MonthlyOverviewPage';
 import { TradingPage } from '@/features/trading/TradingPage';
 import { PortfolioPage } from '@/features/portfolio/PortfolioPage';
-import { GoalsPage } from '@/features/goals/GoalsPage';
+
 
 export const router = createBrowserRouter([
   {
@@ -24,7 +24,6 @@ export const router = createBrowserRouter([
       { path: 'monthly', element: <MonthlyOverviewPage /> },
       { path: 'trading', element: <TradingPage /> },
       { path: 'portfolio', element: <PortfolioPage /> },
-      { path: 'goals', element: <GoalsPage /> },
     ],
   },
 ]);

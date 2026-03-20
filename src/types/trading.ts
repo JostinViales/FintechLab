@@ -5,6 +5,7 @@ export type TradeSource = 'manual' | 'okx';
 export type GoalPeriodType = 'weekly' | 'monthly';
 export type TradingTab = 'overview' | 'trades' | 'analytics' | 'market' | 'ai' | 'settings';
 export type TradingInstance = 'live' | 'demo';
+export type OkxAccountType = 'trading' | 'funding' | 'earn';
 
 // --- Persisted Entities ---
 
@@ -39,6 +40,7 @@ export interface AssetBalance {
   unrealizedPnlPct?: number;
   allocationPct?: number;
   lastSyncedAt?: string;
+  accountType: OkxAccountType;
 }
 
 export interface WatchlistItem {
