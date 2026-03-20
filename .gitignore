@@ -58,3 +58,7 @@ coverage/
 
 # Claude Code
 .claude/plans/
+
+
+#Prompts & Specs
+prompts/

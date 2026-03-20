@@ -14,4 +14,6 @@ export interface Account {
   type: AccountType;
   balance: number;
   color: string;
+  goal?: number | null;
+  deadline?: string | null;
 }

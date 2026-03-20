@@ -15,25 +15,55 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 async function callGeminiProxy(action: string, prompt: string): Promise<string> {
   const {
     data: { session },
+    error: sessionError,
   } = await supabase.auth.getSession();
 
-  if (!session) {
+  if (sessionError || !session) {
+    console.error('Auth session error:', sessionError?.message ?? 'No active session');
     return 'Please sign in to use AI features.';
+  }
+
+  // Verify the token is still valid by checking expiry
+  const expiresAt = session.expires_at ?? 0;
+  const now = Math.floor(Date.now() / 1000);
+  let accessToken = session.access_token;
+
+  console.debug('[Gemini] Token expires_at:', expiresAt, 'now:', now, 'diff:', expiresAt - now);
+
+  if (expiresAt <= now) {
+    // Token expired — attempt refresh
+    const { data: refreshData, error: refreshError } =
+      await supabase.auth.refreshSession();
+    if (refreshError || !refreshData.session) {
+      console.error('Token refresh failed:', refreshError?.message);
+      return 'Your session has expired. Please sign in again.';
+    }
+    accessToken = refreshData.session.access_token;
+    console.debug('[Gemini] Token refreshed successfully');
   }
 
   const response = await fetch(`${SUPABASE_URL}/functions/v1/gemini-proxy`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
+      Authorization: `Bearer ${accessToken}`,
       apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({ action, payload: { prompt } }),
   });
 
   if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(err.error ?? `Gemini proxy error: ${response.status}`);
+    const text = await response.text();
+    console.error('[Gemini] Proxy error response:', response.status, text);
+    let errorMsg = `Gemini proxy error: ${response.status}`;
+    try {
+      const err = JSON.parse(text);
+      errorMsg = err.error ?? err.msg ?? err.message ?? errorMsg;
+    } catch {
+      // response was not JSON
+      errorMsg = text || errorMsg;
+    }
+    throw new Error(errorMsg);
   }
 
   const data = await response.json();

@@ -14,6 +14,8 @@ interface SupabaseAccountRow {
   type: string;
   balance: number;
   color: string;
+  goal: number | null;
+  deadline: string | null;
 }
 
 interface SupabaseCategoryRow {
@@ -68,6 +70,8 @@ function mapAccountRow(row: SupabaseAccountRow): Account {
     type: row.type as AccountType,
     balance: Number(row.balance),
     color: row.color,
+    goal: row.goal != null ? Number(row.goal) : null,
+    deadline: row.deadline ?? null,
   };
 }
 
@@ -99,6 +103,14 @@ function mapMonthlyBudgetRow(row: SupabaseMonthlyBudgetRow): MonthlyBudgetAlloca
     month: row.month,
     amount: Number(row.amount),
   };
+}
+
+async function getUserId(): Promise<string> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  return user.id;
 }
 
 // --- Public API ---
@@ -156,9 +168,10 @@ export const loadData = async (): Promise<{
 
   // Seed default data if empty
   if (accounts.length === 0) {
+    const uid = await getUserId();
     const { data: seededAccounts, error } = await supabase
       .from('accounts')
-      .insert(DEFAULT_ACCOUNTS)
+      .insert(DEFAULT_ACCOUNTS.map((a) => ({ ...a, user_id: uid })))
       .select();
 
     if (!error && seededAccounts) {
@@ -167,12 +180,14 @@ export const loadData = async (): Promise<{
   }
 
   if (categories.length === 0) {
+    const uid = await getUserId();
     const { data: seededCategories, error } = await supabase
       .from('categories')
       .insert(
         DEFAULT_CATEGORIES.map((c) => ({
           name: c.name,
           default_monthly_budget: c.defaultMonthlyBudget,
+          user_id: uid,
         })),
       )
       .select();
@@ -191,6 +206,8 @@ export const saveData = async (
   categories: Category[],
   monthlyBudgets: MonthlyBudgetAllocation[] = [],
 ) => {
+  const uid = await getUserId();
+
   // Upsert Accounts
   const accountsToUpsert = accounts.map((a) => ({
     id: a.id,
@@ -198,6 +215,9 @@ export const saveData = async (
     type: a.type,
     balance: a.balance,
     color: a.color,
+    goal: a.goal ?? null,
+    deadline: a.deadline ?? null,
+    user_id: uid,
   }));
 
   const { error: accountsError } = await supabase
@@ -213,6 +233,7 @@ export const saveData = async (
     id: c.id,
     name: c.name,
     default_monthly_budget: c.defaultMonthlyBudget,
+    user_id: uid,
   }));
 
   const { error: categoriesError } = await supabase
@@ -233,6 +254,7 @@ export const saveData = async (
     account_id: t.accountId,
     to_account_id: t.toAccountId ?? null,
     category: t.category,
+    user_id: uid,
   }));
 
   const { error: transactionsError } = await supabase
@@ -250,6 +272,7 @@ export const saveData = async (
       category_id: mb.categoryId,
       month: mb.month,
       amount: mb.amount,
+      user_id: uid,
     }));
 
     const { error: monthlyBudgetsError } = await supabase

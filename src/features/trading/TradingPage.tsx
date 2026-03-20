@@ -29,7 +29,7 @@ import {
   deleteTrade as deleteTradeApi,
   loadAssetBalances,
   upsertAssetBalance,
-  clearAssetBalances,
+  clearAssetBalancesByType,
   loadStrategyTags,
   saveStrategyTag,
   deleteStrategyTag as deleteStrategyTagApi,
@@ -191,14 +191,18 @@ export const TradingPage: React.FC = () => {
     };
   }, [watchlist, assetBalances]);
 
-  // --- Asset Balance Recalculation ---
+  // --- Asset Balance Recalculation (trading account only) ---
   const recalcBalances = useCallback(
     async (updatedTrades: Trade[]) => {
       const computed = computeAssetBalancesFromTrades(updatedTrades);
 
+      // Only clear trading-type balances — preserve Funding/Earn rows
+      await clearAssetBalancesByType('trading', instance);
+
       if (computed.size === 0) {
-        await clearAssetBalances(instance);
-        setAssetBalances([]);
+        // Reload to keep Funding/Earn balances visible
+        const remaining = await loadAssetBalances(instance);
+        setAssetBalances(remaining);
         return;
       }
 
@@ -209,12 +213,15 @@ export const TradingPage: React.FC = () => {
             totalQuantity: bal.totalQuantity,
             avgBuyPrice: bal.avgBuyPrice,
             totalCost: bal.totalCost,
+            accountType: 'trading',
           },
           instance,
         ),
       );
-      const results = await Promise.all(promises);
-      setAssetBalances(results.filter((r): r is AssetBalance => r !== null));
+      await Promise.all(promises);
+      // Reload all balances so Funding/Earn remain visible
+      const allBalances = await loadAssetBalances(instance);
+      setAssetBalances(allBalances);
     },
     [instance],
   );

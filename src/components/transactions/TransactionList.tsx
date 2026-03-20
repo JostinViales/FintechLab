@@ -23,6 +23,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   const [filterType, setFilterType] = useState<TransactionType | 'All'>('All');
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [filterAccount, setFilterAccount] = useState<string>('All');
+  const [filterMonth, setFilterMonth] = useState<string>('All');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
@@ -31,6 +32,18 @@ export const TransactionList: React.FC<TransactionListProps> = ({
     const cats = new Set(transactions.map((t) => t.category));
     return Array.from(cats).sort();
   }, [transactions]);
+
+  // Get unique months from transactions (YYYY-MM format)
+  const uniqueMonths = useMemo(() => {
+    const months = new Set(transactions.map((t) => t.date.slice(0, 7)));
+    return Array.from(months).sort().reverse();
+  }, [transactions]);
+
+  const formatMonthLabel = (yyyyMm: string): string => {
+    const [year, month] = yyyyMm.split('-');
+    const date = new Date(Number(year), Number(month) - 1);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+  };
 
   const processedTransactions = useMemo(() => {
     return transactions
@@ -41,7 +54,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         const matchesType = filterType === 'All' || t.type === filterType;
         const matchesCategory = filterCategory === 'All' || t.category === filterCategory;
         const matchesAccount = filterAccount === 'All' || t.accountId === filterAccount;
-        return matchesSearch && matchesType && matchesCategory && matchesAccount;
+        const matchesMonth = filterMonth === 'All' || t.date.startsWith(filterMonth);
+        return matchesSearch && matchesType && matchesCategory && matchesAccount && matchesMonth;
       })
       .sort((a, b) => {
         const mul = sortOrder === 'asc' ? 1 : -1;
@@ -50,7 +64,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         }
         return mul * (a.amount - b.amount);
       });
-  }, [transactions, search, filterType, filterCategory, filterAccount, sortField, sortOrder]);
+  }, [transactions, search, filterType, filterCategory, filterAccount, filterMonth, sortField, sortOrder]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -111,6 +125,18 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             {accounts.map((acc) => (
               <option key={acc.id} value={acc.id}>
                 {acc.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filterMonth}
+            onChange={(e) => setFilterMonth(e.target.value)}
+            className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:outline-none"
+          >
+            <option value="All">All Months</option>
+            {uniqueMonths.map((month) => (
+              <option key={month} value={month}>
+                {formatMonthLabel(month)}
               </option>
             ))}
           </select>

@@ -47,7 +47,7 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
     setSavingKeys(true);
     setSaveMessage('');
 
-    const success = await storeCredentials(apiKey, secretKey, passphrase);
+    const success = await storeCredentials(apiKey, secretKey, passphrase, isDemo);
 
     if (success) {
       setSaveMessage('Credentials saved to Vault.');
@@ -299,7 +299,7 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
             {balanceSyncStatus === 'done' && (
               <div className="flex items-center gap-1.5 text-xs">
                 <CheckCircle size={14} className="text-emerald-500" />
-                <span className="text-emerald-500">Balances synced</span>
+                <span className="text-emerald-500">Balances synced (Trading + Funding + Earn)</span>
               </div>
             )}
             {balanceSyncStatus === 'error' && (
