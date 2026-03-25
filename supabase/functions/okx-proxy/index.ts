@@ -24,6 +24,8 @@ const WHITELISTED_ENDPOINTS = new Set([
   '/api/v5/finance/savings/balance',
   '/api/v5/market/ticker',
   '/api/v5/market/tickers',
+  '/api/v5/account/positions-history',
+  '/api/v5/account/positions',
 ]);
 
 const OKX_BASE_URL = 'https://www.okx.com';

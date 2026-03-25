@@ -87,12 +87,17 @@ export const computePortfolioHoldings = (
       return tradeAsset === balance.asset;
     });
 
-    const buyTrades = assetTrades.filter((t) => t.side === 'buy');
-    const sortedBuys = [...buyTrades].sort(
-      (a, b) => new Date(a.tradedAt).getTime() - new Date(b.tradedAt).getTime(),
-    );
+    // For first buy date: use openTime for OKX positions, tradedAt for manual buys
+    const allEntryDates = [
+      ...assetTrades
+        .filter((t) => t.source === 'okx' && t.openTime)
+        .map((t) => t.openTime!),
+      ...assetTrades
+        .filter((t) => t.source === 'manual' && t.side === 'buy')
+        .map((t) => t.tradedAt),
+    ].sort();
 
-    const firstBuyDate = sortedBuys.length > 0 ? sortedBuys[0]!.tradedAt : '';
+    const firstBuyDate = allEntryDates.length > 0 ? allEntryDates[0]! : '';
     const holdingDurationDays = firstBuyDate
       ? Math.floor((now - new Date(firstBuyDate).getTime()) / 86_400_000)
       : 0;
@@ -190,15 +195,21 @@ export const computeAssetHoldingDurations = (
   return balances.map((balance) => {
     const assetTrades = trades.filter((t) => {
       const tradeAsset = t.symbol.split('-')[0] ?? t.symbol;
-      return tradeAsset === balance.asset && t.side === 'buy';
+      return tradeAsset === balance.asset;
     });
 
-    const sorted = [...assetTrades].sort(
-      (a, b) => new Date(a.tradedAt).getTime() - new Date(b.tradedAt).getTime(),
-    );
+    // Collect entry dates: openTime for OKX positions, tradedAt for manual buys
+    const entryDates = [
+      ...assetTrades
+        .filter((t) => t.source === 'okx' && t.openTime)
+        .map((t) => t.openTime!),
+      ...assetTrades
+        .filter((t) => t.source === 'manual' && t.side === 'buy')
+        .map((t) => t.tradedAt),
+    ].sort();
 
-    const firstBuyDate = sorted.length > 0 ? sorted[0]!.tradedAt : '';
-    const lastBuyDate = sorted.length > 0 ? sorted[sorted.length - 1]!.tradedAt : '';
+    const firstBuyDate = entryDates.length > 0 ? entryDates[0]! : '';
+    const lastBuyDate = entryDates.length > 0 ? entryDates[entryDates.length - 1]! : '';
     const holdingDays = firstBuyDate
       ? Math.floor((now - new Date(firstBuyDate).getTime()) / 86_400_000)
       : 0;
@@ -241,7 +252,10 @@ export const computePortfolioValueTimeline = (trades: Trade[]): PortfolioValuePo
     const asset = trade.symbol.split('-')[0] ?? trade.symbol;
     const current = assetCosts.get(asset) ?? { quantity: 0, cost: 0 };
 
-    if (trade.side === 'buy') {
+    if (trade.source === 'okx' && trade.okxPosId) {
+      // OKX position: cost = openAvgPx * quantity, P&L already calculated
+      cumulativeRealizedPnl += trade.realizedPnl ?? 0;
+    } else if (trade.side === 'buy') {
       current.quantity += trade.quantity;
       current.cost += trade.total;
     } else {

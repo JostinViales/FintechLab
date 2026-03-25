@@ -7,6 +7,8 @@ import type {
   OkxSavingsBalance,
   OkxTicker,
   OkxSyncResult,
+  OkxPositionHistory,
+  OkxOpenPosition,
 } from '@/types/okx';
 import type { Trade, TradingInstance } from '@/types/trading';
 import { loadTrades, saveTrade, upsertAssetBalance } from '@/services/supabase/trading';
@@ -171,6 +173,56 @@ export const fetchSavingsBalances = async (): Promise<OkxSavingsBalance[]> => {
   return response.data;
 };
 
+export const fetchPositionHistory = async (params?: {
+  instType?: string;
+  instId?: string;
+  after?: string;
+  before?: string;
+  limit?: string;
+}): Promise<OkxPositionHistory[]> => {
+  const queryParams: Record<string, string> = {};
+  if (params?.instType) queryParams.instType = params.instType;
+  if (params?.instId) queryParams.instId = params.instId;
+  if (params?.after) queryParams.after = params.after;
+  if (params?.before) queryParams.before = params.before;
+  if (params?.limit) queryParams.limit = params.limit;
+
+  const response = await callOkxProxy<OkxPositionHistory>(
+    '/api/v5/account/positions-history',
+    'GET',
+    queryParams,
+  );
+
+  if (!response || response.code !== '0') {
+    console.error('Failed to fetch position history:', response?.msg);
+    return [];
+  }
+
+  return response.data;
+};
+
+export const fetchOpenPositions = async (params?: {
+  instType?: string;
+  instId?: string;
+}): Promise<OkxOpenPosition[]> => {
+  const queryParams: Record<string, string> = {};
+  if (params?.instType) queryParams.instType = params.instType;
+  if (params?.instId) queryParams.instId = params.instId;
+
+  const response = await callOkxProxy<OkxOpenPosition>(
+    '/api/v5/account/positions',
+    'GET',
+    queryParams,
+  );
+
+  if (!response || response.code !== '0') {
+    console.error('Failed to fetch open positions:', response?.msg);
+    return [];
+  }
+
+  return response.data;
+};
+
 export const testConnection = async (): Promise<boolean> => {
   const balance = await fetchAccountBalance();
   return balance !== null;
@@ -208,43 +260,43 @@ export const storeCredentials = async (
 
 // --- Sync Logic ---
 
-function mapOkxFillToTrade(fill: OkxFill): Omit<Trade, 'id' | 'createdAt' | 'total'> {
+const CLOSE_TYPE_LABELS: Record<string, string> = {
+  '1': 'Partial close',
+  '2': 'Close all',
+  '3': 'Liquidation',
+  '4': 'Partial liquidation',
+  '5': 'ADL (partial)',
+  '6': 'ADL (full)',
+};
+
+function mapOkxPositionToTrade(
+  position: OkxPositionHistory,
+): Omit<Trade, 'id' | 'createdAt' | 'total'> {
+  const direction = (position.direction || position.posSide || 'net') as Trade['direction'];
+
   return {
-    symbol: fill.instId,
-    side: fill.side,
-    price: Number(fill.fillPx),
-    quantity: Number(fill.fillSz),
-    fee: Math.abs(Number(fill.fee)),
-    feeCurrency: fill.feeCcy,
+    symbol: position.instId,
+    side: 'sell',
+    price: Number(position.closeAvgPx),
+    quantity: Number(position.closeTotalPos),
+    fee: Math.abs(Number(position.fee)),
+    feeCurrency: position.ccy || 'USDT',
+    realizedPnl: Number(position.realizedPnl),
     source: 'okx',
-    okxTradeId: fill.tradeId,
-    okxOrderId: fill.ordId,
-    tradedAt: new Date(Number(fill.ts)).toISOString(),
+    okxPosId: position.posId,
+    direction,
+    openAvgPx: Number(position.openAvgPx),
+    closeAvgPx: Number(position.closeAvgPx),
+    fundingFee: Math.abs(Number(position.fundingFee)),
+    liqPenalty: Math.abs(Number(position.liqPenalty)),
+    pnlRatio: Number(position.pnlRatio),
+    leverage: position.lever,
+    marginMode: position.mgnMode as Trade['marginMode'],
+    openTime: new Date(Number(position.cTime)).toISOString(),
+    closeTime: new Date(Number(position.uTime)).toISOString(),
+    tradedAt: new Date(Number(position.uTime)).toISOString(),
+    notes: CLOSE_TYPE_LABELS[position.type] ?? undefined,
   };
-}
-
-async function importFills(
-  fills: OkxFill[],
-  existingOkxIds: Set<string | undefined>,
-  result: OkxSyncResult,
-  instance: TradingInstance,
-): Promise<void> {
-  for (const fill of fills) {
-    if (existingOkxIds.has(fill.tradeId)) {
-      result.skipped++;
-      continue;
-    }
-
-    const tradeData = mapOkxFillToTrade(fill);
-    const saved = await saveTrade(tradeData, instance);
-
-    if (saved) {
-      result.imported++;
-      existingOkxIds.add(fill.tradeId);
-    } else {
-      result.errors.push(`Failed to save trade ${fill.tradeId}`);
-    }
-  }
 }
 
 export const syncTradesFromOkx = async (
@@ -252,33 +304,38 @@ export const syncTradesFromOkx = async (
 ): Promise<OkxSyncResult> => {
   const result: OkxSyncResult = { imported: 0, skipped: 0, errors: [] };
 
-  // Load existing OKX trade IDs for dedup
-  const existingTrades = await loadTrades(
-    { source: 'okx' } as Parameters<typeof loadTrades>[0],
-    instance,
-  );
-  const existingOkxIds = new Set(
-    existingTrades.filter((t) => t.okxTradeId).map((t) => t.okxTradeId),
+  // Load existing OKX position IDs for dedup
+  const existingTrades = await loadTrades(undefined, instance);
+  const existingPosIds = new Set(
+    existingTrades.filter((t) => t.okxPosId).map((t) => t.okxPosId),
   );
 
-  // 1. Try recent fills first (last 3 days) — /api/v5/trade/fills
+  // Paginated fetch of closed positions (cursor = uTime of last record)
   let after: string | undefined;
-  for (let page = 0; page < 5; page++) {
-    const fills = await fetchRecentFills({ limit: '100', after });
-    if (fills.length === 0) break;
-    await importFills(fills, existingOkxIds, result, instance);
-    after = fills[fills.length - 1]?.tradeId ?? '';
-    if (fills.length < 100) break;
-  }
+  for (let page = 0; page < 10; page++) {
+    const positions = await fetchPositionHistory({ limit: '100', after });
+    if (positions.length === 0) break;
 
-  // 2. Also try historical fills (older than 3 days) — /api/v5/trade/fills-history
-  after = undefined;
-  for (let page = 0; page < 5; page++) {
-    const fills = await fetchTradeHistory({ limit: '100', after });
-    if (fills.length === 0) break;
-    await importFills(fills, existingOkxIds, result, instance);
-    after = fills[fills.length - 1]?.tradeId ?? '';
-    if (fills.length < 100) break;
+    for (const position of positions) {
+      if (existingPosIds.has(position.posId)) {
+        result.skipped++;
+        continue;
+      }
+
+      const tradeData = mapOkxPositionToTrade(position);
+      const saved = await saveTrade(tradeData, instance);
+
+      if (saved) {
+        result.imported++;
+        existingPosIds.add(position.posId);
+      } else {
+        result.errors.push(`Failed to save position ${position.posId}`);
+      }
+    }
+
+    // Pagination: use uTime of the last record as cursor
+    after = positions[positions.length - 1]?.uTime ?? '';
+    if (positions.length < 100) break;
   }
 
   return result;
@@ -289,7 +346,7 @@ export const syncBalancesFromOkx = async (
 ): Promise<boolean> => {
   const now = new Date().toISOString();
 
-  // Fetch all three account types in parallel
+  // Fetch all three account types in parallel (safe since outer syncs are sequential)
   const [tradingBalance, fundingBalances, savingsBalances] = await Promise.all([
     fetchAccountBalance(),
     fetchFundingBalances().catch(() => [] as OkxFundingBalance[]),
@@ -299,17 +356,20 @@ export const syncBalancesFromOkx = async (
   // At minimum, trading balance must succeed
   if (!tradingBalance) return false;
 
-  // Upsert Trading account balances
+  // Upsert Trading account balances (now with cost basis from OKX)
   for (const detail of tradingBalance.details) {
-    const totalBal = Number(detail.bal);
+    const totalBal = Number(detail.cashBal) || 0;
     if (totalBal <= 0) continue;
+
+    const avgBuyPrice = Number(detail.openAvgPx) || 0;
+    const totalCost = avgBuyPrice > 0 ? totalBal * avgBuyPrice : 0;
 
     await upsertAssetBalance(
       {
         asset: detail.ccy,
         totalQuantity: totalBal,
-        avgBuyPrice: 0,
-        totalCost: 0,
+        avgBuyPrice,
+        totalCost,
         lastSyncedAt: now,
         accountType: 'trading',
       },
@@ -319,7 +379,7 @@ export const syncBalancesFromOkx = async (
 
   // Upsert Funding account balances
   for (const fb of fundingBalances) {
-    const totalBal = Number(fb.bal);
+    const totalBal = Number(fb.bal) || 0;
     if (totalBal <= 0) continue;
 
     await upsertAssetBalance(
@@ -335,9 +395,9 @@ export const syncBalancesFromOkx = async (
     );
   }
 
-  // Upsert Earn (Simple Earn / Savings) balances
+  // Upsert Earn (Simple Earn / Savings) balances with earnings
   for (const sb of savingsBalances) {
-    const totalAmt = Number(sb.amt);
+    const totalAmt = Number(sb.amt) || 0;
     if (totalAmt <= 0) continue;
 
     await upsertAssetBalance(
@@ -348,6 +408,7 @@ export const syncBalancesFromOkx = async (
         totalCost: 0,
         lastSyncedAt: now,
         accountType: 'earn',
+        earnings: Number(sb.earnings) || 0,
       },
       instance,
     );

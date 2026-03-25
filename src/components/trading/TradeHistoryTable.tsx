@@ -194,18 +194,39 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                     {t.symbol}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 text-sm">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        t.side === 'buy'
-                          ? 'bg-emerald-500/15 text-emerald-400'
-                          : 'bg-red-500/15 text-red-400'
-                      }`}
-                    >
-                      {t.side.toUpperCase()}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          t.side === 'buy'
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : 'bg-red-500/15 text-red-400'
+                        }`}
+                      >
+                        {t.side.toUpperCase()}
+                      </span>
+                      {t.direction && (
+                        <span
+                          className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            t.direction === 'long'
+                              ? 'bg-green-500/15 text-green-400'
+                              : t.direction === 'short'
+                                ? 'bg-red-500/15 text-red-400'
+                                : 'bg-slate-500/15 text-slate-400'
+                          }`}
+                        >
+                          {t.direction.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 text-right text-sm text-[var(--text-primary)]">
-                    {formatCurrency(t.price)}
+                    {t.openAvgPx ? (
+                      <span>
+                        {formatCurrency(t.openAvgPx)} → {formatCurrency(t.price)}
+                      </span>
+                    ) : (
+                      formatCurrency(t.price)
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 text-right text-sm text-[var(--text-secondary)]">
                     {formatCrypto(t.quantity)}
@@ -223,6 +244,11 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                         }
                       >
                         {formatPnl(t.realizedPnl)}
+                        {t.pnlRatio != null && (
+                          <span className="ml-1 text-xs">
+                            ({(t.pnlRatio * 100).toFixed(2)}%)
+                          </span>
+                        )}
                       </span>
                     ) : (
                       <span className="text-[var(--text-muted)]">---</span>
@@ -293,13 +319,28 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="font-medium text-[var(--text-primary)]">{t.symbol}</p>
-                        <span
-                          className={`inline-block text-xs font-semibold ${
-                            t.side === 'buy' ? 'text-emerald-400' : 'text-red-400'
-                          }`}
-                        >
-                          {t.side.toUpperCase()}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-block text-xs font-semibold ${
+                              t.side === 'buy' ? 'text-emerald-400' : 'text-red-400'
+                            }`}
+                          >
+                            {t.side.toUpperCase()}
+                          </span>
+                          {t.direction && (
+                            <span
+                              className={`inline-block text-xs font-semibold ${
+                                t.direction === 'long'
+                                  ? 'text-green-400'
+                                  : t.direction === 'short'
+                                    ? 'text-red-400'
+                                    : 'text-slate-400'
+                              }`}
+                            >
+                              {t.direction.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="font-medium text-[var(--text-primary)]">
@@ -314,6 +355,11 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                             }`}
                           >
                             {formatPnl(t.realizedPnl)}
+                            {t.pnlRatio != null && (
+                              <span className="ml-1">
+                                ({(t.pnlRatio * 100).toFixed(2)}%)
+                              </span>
+                            )}
                           </p>
                         )}
                       </div>
@@ -323,7 +369,14 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                       <span>{formatDate(t.tradedAt)}</span>
                       <span>-</span>
                       <span>
-                        {formatCrypto(t.quantity)} @ {formatCurrency(t.price)}
+                        {formatCrypto(t.quantity)} @{' '}
+                        {t.openAvgPx ? (
+                          <>
+                            {formatCurrency(t.openAvgPx)} → {formatCurrency(t.price)}
+                          </>
+                        ) : (
+                          formatCurrency(t.price)
+                        )}
                       </span>
                     </div>
 

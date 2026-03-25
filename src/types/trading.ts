@@ -26,6 +26,18 @@ export interface Trade {
   okxOrderId?: string;
   tradedAt: string;
   createdAt: string;
+  // Position-based fields (OKX positions-history sync)
+  okxPosId?: string;
+  direction?: 'long' | 'short' | 'net';
+  openAvgPx?: number;
+  closeAvgPx?: number;
+  fundingFee?: number;
+  liqPenalty?: number;
+  pnlRatio?: number;
+  leverage?: string;
+  marginMode?: 'isolated' | 'cross';
+  openTime?: string;
+  closeTime?: string;
 }
 
 export interface AssetBalance {
@@ -41,6 +53,7 @@ export interface AssetBalance {
   allocationPct?: number;
   lastSyncedAt?: string;
   accountType: OkxAccountType;
+  earnings?: number;
 }
 
 export interface WatchlistItem {
