@@ -178,11 +178,13 @@ export const computeEquityCurve = (
 /**
  * Recalculate asset balances from trade history.
  * Uses weighted average cost basis method.
+ * Only processes manual trades — OKX balances are synced directly from the exchange.
  */
 export const computeAssetBalancesFromTrades = (
   trades: Trade[],
 ): Map<string, { totalQuantity: number; avgBuyPrice: number; totalCost: number }> => {
-  const sorted = [...trades].sort(
+  const manualTrades = trades.filter((t) => t.source === 'manual');
+  const sorted = [...manualTrades].sort(
     (a, b) => new Date(a.tradedAt).getTime() - new Date(b.tradedAt).getTime(),
   );
 
@@ -276,15 +278,34 @@ export const computeTimeAnalysis = (trades: Trade[]): TimeAnalysis => {
 };
 
 /**
- * Estimate hold durations by pairing buy and sell trades per symbol (FIFO).
+ * Estimate hold durations.
+ * OKX positions: use openTime/closeTime directly.
+ * Manual trades: pair buy/sell per symbol using FIFO.
  */
 export const computeHoldDurations = (trades: Trade[]): HoldDuration[] => {
-  const sorted = [...trades].sort(
+  const durations: HoldDuration[] = [];
+
+  // OKX positions: direct duration from openTime/closeTime
+  const okxPositions = trades.filter(
+    (t) => t.source === 'okx' && t.openTime && t.closeTime,
+  );
+  for (const pos of okxPositions) {
+    const durationMs =
+      new Date(pos.closeTime!).getTime() - new Date(pos.openTime!).getTime();
+    durations.push({
+      durationMinutes: Math.max(0, durationMs / 60000),
+      pnl: pos.realizedPnl ?? 0,
+      symbol: pos.symbol,
+    });
+  }
+
+  // Manual trades: FIFO pairing
+  const manualTrades = trades.filter((t) => t.source === 'manual');
+  const sorted = [...manualTrades].sort(
     (a, b) => new Date(a.tradedAt).getTime() - new Date(b.tradedAt).getTime(),
   );
 
   const buyQueues = new Map<string, { tradedAt: string; quantity: number; price: number }[]>();
-  const durations: HoldDuration[] = [];
 
   for (const trade of sorted) {
     const symbol = trade.symbol;

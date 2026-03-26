@@ -40,8 +40,18 @@ export interface OkxBalanceDetail {
   ccy: string;
   availBal: string;
   frozenBal: string;
-  bal: string;
+  cashBal: string;
+  eq: string;
   uTime: string;
+  eqUsd: string;
+  // Spot cost basis fields
+  openAvgPx: string;
+  accAvgPx: string;
+  spotBal: string;
+  spotUpl: string;
+  spotUplRatio: string;
+  totalPnl: string;
+  totalPnlRatio: string;
 }
 
 export interface OkxAccountBalance {
@@ -98,6 +108,60 @@ export interface OkxSavingsBalance {
   loanAmt: string;
   pendingAmt: string;
   redemptAmt: string;
+}
+
+// --- Position History (GET /api/v5/account/positions-history) ---
+
+export interface OkxPositionHistory {
+  instId: string;
+  instType: string;
+  mgnMode: string;
+  posId: string;
+  posSide: string;
+  direction: string;
+  openAvgPx: string;
+  closeAvgPx: string;
+  closeTotalPos: string;
+  openMaxPos: string;
+  realizedPnl: string;
+  pnl: string;
+  pnlRatio: string;
+  fee: string;
+  fundingFee: string;
+  liqPenalty: string;
+  settledPnl: string;
+  type: string;
+  lever: string;
+  ccy: string;
+  cTime: string;
+  uTime: string;
+  uly: string;
+  triggerPx: string;
+  nonSettleAvgPx: string;
+}
+
+// --- Open Positions (GET /api/v5/account/positions) ---
+
+export interface OkxOpenPosition {
+  instType: string;
+  instId: string;
+  posId: string;
+  pos: string;
+  posSide: string;
+  avgPx: string;
+  markPx: string;
+  upl: string;
+  uplRatio: string;
+  lever: string;
+  mgnMode: string;
+  liqPx: string;
+  notionalUsd: string;
+  fee: string;
+  fundingFee: string;
+  realizedPnl: string;
+  cTime: string;
+  uTime: string;
+  ccy: string;
 }
 
 // --- Sync Result ---

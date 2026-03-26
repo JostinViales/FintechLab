@@ -116,12 +116,10 @@ export const TradingPage: React.FC = () => {
       setLoading(true);
       setSyncError(null);
 
-      // Auto-sync from OKX, then load all data
+      // Auto-sync from OKX sequentially (parallel causes WORKER_LIMIT on free tier)
       try {
-        await Promise.all([
-          syncTradesFromOkx(instance).catch(() => {}),
-          syncBalancesFromOkx(instance).catch(() => {}),
-        ]);
+        await syncTradesFromOkx(instance).catch(() => {});
+        await syncBalancesFromOkx(instance).catch(() => {});
       } catch {
         // Sync failures are non-blocking — data will load from DB
       }
@@ -497,7 +495,7 @@ export const TradingPage: React.FC = () => {
 
           <Card title="Recalculate All P&L">
             <p className="text-sm text-[var(--text-secondary)] mb-4">
-              Re-run FIFO matching across all trades to recalculate realized P&L for every sell.
+              Re-run FIFO matching for manually entered trades to recalculate realized P&L.
               Useful after bulk imports or manual edits.
             </p>
             <div className="flex items-center gap-3">

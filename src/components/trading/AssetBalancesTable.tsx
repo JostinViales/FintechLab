@@ -124,17 +124,26 @@ export const AssetBalancesTable: React.FC<AssetBalancesTableProps> = ({ balances
           <tbody className="divide-y divide-[var(--border-subtle)]">
             {enriched.map((b) => (
               <tr key={`${b.asset}-${b.accountType}`} className="transition-colors hover:bg-[var(--bg-tertiary)]">
-                <td className="whitespace-nowrap px-4 py-4 text-sm font-bold text-[var(--text-primary)]">
-                  <span className="flex items-center gap-2">
-                    {b.asset}
-                    {hasMultipleTypes && (
-                      <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${ACCOUNT_TYPE_COLORS[b.accountType]}`}
-                      >
-                        {b.accountType}
-                      </span>
-                    )}
-                  </span>
+                <td className="px-4 py-4 text-sm font-bold text-[var(--text-primary)]">
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        {b.asset}
+                        {hasMultipleTypes && (
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${ACCOUNT_TYPE_COLORS[b.accountType]}`}
+                          >
+                            {b.accountType}
+                          </span>
+                        )}
+                      </div>
+                      {b.accountType === 'earn' && b.earnings !== undefined && b.earnings > 0 && (
+                        <div className="text-xs text-emerald-500 mt-1">
+                          Earnings: {formatCurrency(b.earnings)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </td>
                 <td className="whitespace-nowrap px-4 py-4 text-right text-sm text-[var(--text-secondary)]">
                   {formatCrypto(b.totalQuantity)}
@@ -245,6 +254,11 @@ export const AssetBalancesTable: React.FC<AssetBalancesTableProps> = ({ balances
               </span>
               <span>{formatPercent(b.allocationPct)}</span>
             </div>
+            {b.accountType === 'earn' && b.earnings !== undefined && b.earnings > 0 && (
+              <div className="text-xs text-emerald-500 mt-1">
+                Earnings: {formatCurrency(b.earnings)}
+              </div>
+            )}
             {hasLivePrices && b.currentPrice !== undefined && (
               <div className="flex items-center justify-between text-xs mt-1">
                 <span className="text-[var(--text-secondary)]">

@@ -39,6 +39,18 @@ interface SupabaseTradeRow {
   okx_order_id: string | null;
   traded_at: string;
   created_at: string;
+  // Position-based columns
+  okx_pos_id: string | null;
+  direction: string | null;
+  open_avg_px: number | null;
+  close_avg_px: number | null;
+  funding_fee: number | null;
+  liq_penalty: number | null;
+  pnl_ratio: number | null;
+  leverage: string | null;
+  margin_mode: string | null;
+  open_time: string | null;
+  close_time: string | null;
 }
 
 interface SupabaseAssetBalanceRow {
@@ -49,6 +61,7 @@ interface SupabaseAssetBalanceRow {
   total_cost: number;
   last_synced_at: string | null;
   account_type: string;
+  earnings: number | null;
 }
 
 interface SupabaseWatchlistRow {
@@ -95,6 +108,17 @@ function mapTradeRow(row: SupabaseTradeRow): Trade {
     okxOrderId: row.okx_order_id ?? undefined,
     tradedAt: row.traded_at,
     createdAt: row.created_at,
+    okxPosId: row.okx_pos_id ?? undefined,
+    direction: (row.direction as Trade['direction']) ?? undefined,
+    openAvgPx: row.open_avg_px != null ? Number(row.open_avg_px) : undefined,
+    closeAvgPx: row.close_avg_px != null ? Number(row.close_avg_px) : undefined,
+    fundingFee: row.funding_fee != null ? Number(row.funding_fee) : undefined,
+    liqPenalty: row.liq_penalty != null ? Number(row.liq_penalty) : undefined,
+    pnlRatio: row.pnl_ratio != null ? Number(row.pnl_ratio) : undefined,
+    leverage: row.leverage ?? undefined,
+    marginMode: (row.margin_mode as Trade['marginMode']) ?? undefined,
+    openTime: row.open_time ?? undefined,
+    closeTime: row.close_time ?? undefined,
   };
 }
 
@@ -107,6 +131,7 @@ function mapAssetBalanceRow(row: SupabaseAssetBalanceRow): AssetBalance {
     totalCost: Number(row.total_cost),
     lastSyncedAt: row.last_synced_at ?? undefined,
     accountType: (row.account_type as OkxAccountType) ?? 'trading',
+    earnings: row.earnings != null ? Number(row.earnings) : undefined,
   };
 }
 
@@ -166,7 +191,7 @@ export const saveTrade = async (
   instance: TradingInstance = 'live',
 ): Promise<Trade | null> => {
   const userId = await getCurrentUserId();
-  const row = {
+  const baseRow: Record<string, unknown> = {
     symbol: trade.symbol,
     side: trade.side,
     price: trade.price,
@@ -184,7 +209,42 @@ export const saveTrade = async (
     user_id: userId,
   };
 
+  // Position columns (may not exist pre-migration)
+  const positionFields: Record<string, unknown> = {
+    okx_pos_id: trade.okxPosId ?? null,
+    direction: trade.direction ?? null,
+    open_avg_px: trade.openAvgPx ?? null,
+    close_avg_px: trade.closeAvgPx ?? null,
+    funding_fee: trade.fundingFee ?? null,
+    liq_penalty: trade.liqPenalty ?? null,
+    pnl_ratio: trade.pnlRatio ?? null,
+    leverage: trade.leverage ?? null,
+    margin_mode: trade.marginMode ?? null,
+    open_time: trade.openTime ?? null,
+    close_time: trade.closeTime ?? null,
+  };
+
+  // Include position fields if any have values
+  const hasPositionData = trade.okxPosId !== undefined;
+  const row = hasPositionData ? { ...baseRow, ...positionFields } : baseRow;
+
   const { data, error } = await supabase.from('trades').insert(row).select().single();
+
+  // Fallback: retry without position columns if they don't exist yet
+  if (error?.code === 'PGRST204' && hasPositionData) {
+    const { data: retryData, error: retryError } = await supabase
+      .from('trades')
+      .insert(baseRow)
+      .select()
+      .single();
+
+    if (retryError) {
+      console.error('Error saving trade:', retryError);
+      return null;
+    }
+    return mapTradeRow(retryData);
+  }
+
   if (error) {
     console.error('Error saving trade:', error);
     return null;
@@ -239,8 +299,11 @@ export const upsertAssetBalance = async (
   balance: Omit<AssetBalance, 'id'>,
   instance: TradingInstance = 'live',
 ): Promise<AssetBalance | null> => {
+  // Guard against NaN values that would violate NOT NULL constraints
+  if (!Number.isFinite(balance.totalQuantity) || balance.totalQuantity <= 0) return null;
+
   const userId = await getCurrentUserId();
-  const row = {
+  const baseRow: Record<string, unknown> = {
     asset: balance.asset,
     total_quantity: balance.totalQuantity,
     avg_buy_price: balance.avgBuyPrice,
@@ -251,11 +314,32 @@ export const upsertAssetBalance = async (
     user_id: userId,
   };
 
+  // Include earnings if provided (column may not exist pre-migration)
+  if (balance.earnings !== undefined) {
+    baseRow.earnings = balance.earnings;
+  }
+
   const { data, error } = await supabase
     .from('asset_balances')
-    .upsert(row, { onConflict: 'asset,user_id,instance,account_type' })
+    .upsert(baseRow, { onConflict: 'asset,user_id,instance,account_type' })
     .select()
     .single();
+
+  // Fallback: retry without earnings if column doesn't exist yet
+  if (error?.code === 'PGRST204' && error.message?.includes('earnings')) {
+    delete baseRow.earnings;
+    const { data: retryData, error: retryError } = await supabase
+      .from('asset_balances')
+      .upsert(baseRow, { onConflict: 'asset,user_id,instance,account_type' })
+      .select()
+      .single();
+
+    if (retryError) {
+      console.error('Error upserting asset balance:', retryError);
+      return null;
+    }
+    return mapAssetBalanceRow(retryData);
+  }
 
   if (error) {
     console.error('Error upserting asset balance:', error);
@@ -482,18 +566,19 @@ export const deleteTradingLimit = async (id: string): Promise<void> => {
   if (error) console.error('Error deleting trading limit:', error);
 };
 
-// --- FIFO P&L Matching ---
+// --- FIFO P&L Matching (manual trades only — OKX positions have P&L from exchange) ---
 
 export async function matchTradesForSymbol(
   symbol: string,
   instance: TradingInstance = 'live',
 ): Promise<number> {
   const trades = await loadTrades({ symbol }, instance);
-  const updates = computeFifoMatches(trades);
+  const manualTrades = trades.filter((t) => t.source === 'manual');
+  const updates = computeFifoMatches(manualTrades);
 
   let updatedCount = 0;
   for (const update of updates) {
-    const existing = trades.find((t) => t.id === update.id);
+    const existing = manualTrades.find((t) => t.id === update.id);
     if (!existing) continue;
 
     const currentPnl = existing.realizedPnl ?? null;
@@ -511,11 +596,12 @@ export async function recalcAllPnl(
   instance: TradingInstance = 'live',
 ): Promise<number> {
   const trades = await loadTrades(undefined, instance);
-  const updates = computeFifoMatches(trades);
+  const manualTrades = trades.filter((t) => t.source === 'manual');
+  const updates = computeFifoMatches(manualTrades);
 
   let updatedCount = 0;
   for (const update of updates) {
-    const existing = trades.find((t) => t.id === update.id);
+    const existing = manualTrades.find((t) => t.id === update.id);
     if (!existing) continue;
 
     const currentPnl = existing.realizedPnl ?? null;
@@ -527,4 +613,25 @@ export async function recalcAllPnl(
   }
 
   return updatedCount;
+}
+
+// --- Legacy Fill Cleanup ---
+
+export async function clearOkxFillTrades(
+  instance: TradingInstance = 'live',
+): Promise<number> {
+  const { data, error } = await supabase
+    .from('trades')
+    .delete()
+    .eq('instance', instance)
+    .eq('source', 'okx')
+    .not('okx_trade_id', 'is', null)
+    .is('okx_pos_id', null)
+    .select('id');
+
+  if (error) {
+    console.error('Error clearing OKX fill trades:', error);
+    return 0;
+  }
+  return data?.length ?? 0;
 }
