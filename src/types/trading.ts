@@ -1,7 +1,8 @@
 // --- Enums / Literal Types ---
 
 export type TradeSide = 'buy' | 'sell';
-export type TradeSource = 'manual' | 'okx';
+/** All trades come from exchange APIs. Legacy 'manual' rows may exist in DB. */
+export type TradeSource = 'okx';
 export type GoalPeriodType = 'weekly' | 'monthly';
 export type TradingTab = 'overview' | 'trades' | 'analytics' | 'market' | 'ai' | 'settings';
 export type TradingInstance = 'live' | 'demo';

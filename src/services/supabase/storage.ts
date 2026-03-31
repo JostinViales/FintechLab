@@ -141,6 +141,26 @@ export const loadData = async (): Promise<{
 
   let categories: Category[] = (categoriesData ?? []).map(mapCategoryRow);
 
+  // Deduplicate categories by name (keep the first occurrence)
+  const seenNames = new Set<string>();
+  const uniqueCategories: Category[] = [];
+  const duplicateIds: string[] = [];
+  for (const cat of categories) {
+    if (seenNames.has(cat.name)) {
+      duplicateIds.push(cat.id);
+    } else {
+      seenNames.add(cat.name);
+      uniqueCategories.push(cat);
+    }
+  }
+  categories = uniqueCategories;
+
+  // Clean up duplicates from DB
+  if (duplicateIds.length > 0) {
+    console.warn(`Removing ${duplicateIds.length} duplicate categories from DB`);
+    await supabase.from('categories').delete().in('id', duplicateIds);
+  }
+
   // Load Transactions
   const { data: transactionsData, error: transactionsError } = await supabase
     .from('transactions')
@@ -167,7 +187,7 @@ export const loadData = async (): Promise<{
   );
 
   // Seed default data if empty
-  if (accounts.length === 0) {
+  if (accounts.length === 0 && !accountsError) {
     const uid = await getUserId();
     const { data: seededAccounts, error } = await supabase
       .from('accounts')
@@ -179,7 +199,7 @@ export const loadData = async (): Promise<{
     }
   }
 
-  if (categories.length === 0) {
+  if (categories.length === 0 && !categoriesError) {
     const uid = await getUserId();
     const { data: seededCategories, error } = await supabase
       .from('categories')

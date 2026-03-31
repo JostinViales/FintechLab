@@ -56,9 +56,15 @@ service-account.json
 # Testing
 coverage/
 
-# Claude Code
-.claude/plans/
-
 
 #Prompts & Specs
 prompts/
+
+# Documentation (local only)
+docs/
+
+# Dev container config
+.devcontainer/
+
+# Claude Code
+.claude/

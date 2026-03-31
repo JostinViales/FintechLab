@@ -87,15 +87,11 @@ export const computePortfolioHoldings = (
       return tradeAsset === balance.asset;
     });
 
-    // For first buy date: use openTime for OKX positions, tradedAt for manual buys
-    const allEntryDates = [
-      ...assetTrades
-        .filter((t) => t.source === 'okx' && t.openTime)
-        .map((t) => t.openTime!),
-      ...assetTrades
-        .filter((t) => t.source === 'manual' && t.side === 'buy')
-        .map((t) => t.tradedAt),
-    ].sort();
+    // For first buy date: use openTime from OKX positions
+    const allEntryDates = assetTrades
+      .filter((t) => t.openTime)
+      .map((t) => t.openTime!)
+      .sort();
 
     const firstBuyDate = allEntryDates.length > 0 ? allEntryDates[0]! : '';
     const holdingDurationDays = firstBuyDate
@@ -198,15 +194,11 @@ export const computeAssetHoldingDurations = (
       return tradeAsset === balance.asset;
     });
 
-    // Collect entry dates: openTime for OKX positions, tradedAt for manual buys
-    const entryDates = [
-      ...assetTrades
-        .filter((t) => t.source === 'okx' && t.openTime)
-        .map((t) => t.openTime!),
-      ...assetTrades
-        .filter((t) => t.source === 'manual' && t.side === 'buy')
-        .map((t) => t.tradedAt),
-    ].sort();
+    // Collect entry dates from OKX positions
+    const entryDates = assetTrades
+      .filter((t) => t.openTime)
+      .map((t) => t.openTime!)
+      .sort();
 
     const firstBuyDate = entryDates.length > 0 ? entryDates[0]! : '';
     const lastBuyDate = entryDates.length > 0 ? entryDates[entryDates.length - 1]! : '';
@@ -322,7 +314,7 @@ export const computePortfolioRiskMetrics = (
   }
 
   // Max drawdown from cumulative equity
-  let equity = 10000;
+  let equity = 0;
   let peak = equity;
   let maxDrawdown = 0;
   let maxDrawdownPct = 0;

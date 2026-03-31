@@ -19,21 +19,6 @@ export interface OkxApiResponse<T> {
   data: T[];
 }
 
-// --- Trade History (GET /api/v5/trade/fills-history) ---
-
-export interface OkxFill {
-  instId: string;
-  tradeId: string;
-  ordId: string;
-  side: 'buy' | 'sell';
-  fillPx: string;
-  fillSz: string;
-  fee: string;
-  feeCcy: string;
-  ts: string;
-  instType: string;
-}
-
 // --- Account Balance (GET /api/v5/account/balance) ---
 
 export interface OkxBalanceDetail {

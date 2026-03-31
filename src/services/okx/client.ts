@@ -1,7 +1,6 @@
 import { supabase } from '@/services/supabase/client';
 import type {
   OkxApiResponse,
-  OkxFill,
   OkxAccountBalance,
   OkxFundingBalance,
   OkxSavingsBalance,
@@ -60,60 +59,6 @@ const callOkxProxy = async <T>(
 };
 
 // --- Public API ---
-
-export const fetchTradeHistory = async (params?: {
-  instId?: string;
-  after?: string;
-  before?: string;
-  limit?: string;
-}): Promise<OkxFill[]> => {
-  const queryParams: Record<string, string> = {};
-  if (params?.instId) queryParams.instId = params.instId;
-  if (params?.after) queryParams.after = params.after;
-  if (params?.before) queryParams.before = params.before;
-  if (params?.limit) queryParams.limit = params.limit;
-
-  queryParams.instType = queryParams.instType ?? 'SPOT';
-  const response = await callOkxProxy<OkxFill>(
-    '/api/v5/trade/fills-history',
-    'GET',
-    queryParams,
-  );
-
-  if (!response || response.code !== '0') {
-    console.error('Failed to fetch trade history:', response?.msg);
-    return [];
-  }
-
-  return response.data;
-};
-
-export const fetchRecentFills = async (params?: {
-  instId?: string;
-  after?: string;
-  before?: string;
-  limit?: string;
-}): Promise<OkxFill[]> => {
-  const queryParams: Record<string, string> = {};
-  if (params?.instId) queryParams.instId = params.instId;
-  if (params?.after) queryParams.after = params.after;
-  if (params?.before) queryParams.before = params.before;
-  if (params?.limit) queryParams.limit = params.limit;
-
-  queryParams.instType = queryParams.instType ?? 'SPOT';
-  const response = await callOkxProxy<OkxFill>(
-    '/api/v5/trade/fills',
-    'GET',
-    queryParams,
-  );
-
-  if (!response || response.code !== '0') {
-    console.error('Failed to fetch recent fills:', response?.msg);
-    return [];
-  }
-
-  return response.data;
-};
 
 export const fetchAccountBalance = async (): Promise<OkxAccountBalance | null> => {
   const response = await callOkxProxy<OkxAccountBalance>('/api/v5/account/balance', 'GET');
@@ -299,6 +244,9 @@ function mapOkxPositionToTrade(
   };
 }
 
+// Only sync positions closed on or after this date
+const SYNC_CUTOFF_MS = new Date('2026-01-01T00:00:00Z').getTime();
+
 export const syncTradesFromOkx = async (
   instance: TradingInstance = 'live',
 ): Promise<OkxSyncResult> => {
@@ -316,7 +264,15 @@ export const syncTradesFromOkx = async (
     const positions = await fetchPositionHistory({ limit: '100', after });
     if (positions.length === 0) break;
 
+    let hitCutoff = false;
     for (const position of positions) {
+      // Skip positions closed before the cutoff date
+      if (Number(position.uTime) < SYNC_CUTOFF_MS) {
+        result.skipped++;
+        hitCutoff = true;
+        continue;
+      }
+
       if (existingPosIds.has(position.posId)) {
         result.skipped++;
         continue;
@@ -332,6 +288,9 @@ export const syncTradesFromOkx = async (
         result.errors.push(`Failed to save position ${position.posId}`);
       }
     }
+
+    // OKX returns newest first — if we hit the cutoff, all remaining pages are older
+    if (hitCutoff) break;
 
     // Pagination: use uTime of the last record as cursor
     after = positions[positions.length - 1]?.uTime ?? '';

@@ -191,8 +191,8 @@ export const PortfolioPage: React.FC = () => {
             No Holdings Yet
           </h2>
           <p className="text-[var(--text-secondary)] mb-4">
-            Start by adding trades in the Trading page. Your portfolio will automatically update
-            as you record buys and sells.
+            Connect your OKX account in the Trading page to sync your positions and balances
+            automatically.
           </p>
         </Card>
       </div>
