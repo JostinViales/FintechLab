@@ -10,7 +10,6 @@ import type {
   TradingInstance,
   OkxAccountType,
 } from '@/types';
-import { computeFifoMatches } from '@/lib/tradeMatching';
 
 async function getCurrentUserId(): Promise<string> {
   const {
@@ -281,6 +280,17 @@ export const deleteTrade = async (id: string): Promise<void> => {
   if (error) console.error('Error deleting trade:', error);
 };
 
+export const clearAllTrades = async (
+  instance: TradingInstance = 'live',
+): Promise<void> => {
+  const { error } = await supabase
+    .from('trades')
+    .delete()
+    .eq('instance', instance)
+    .gte('created_at', '1970-01-01');
+  if (error) console.error('Error clearing all trades:', error);
+};
+
 // --- Asset Balances ---
 
 export const loadAssetBalances = async (
@@ -355,7 +365,7 @@ export const clearAssetBalances = async (
     .from('asset_balances')
     .delete()
     .eq('instance', instance)
-    .neq('id', '');
+    .not('asset', 'is', null);
   if (error) console.error('Error clearing asset balances:', error);
 };
 
@@ -368,7 +378,7 @@ export const clearAssetBalancesByType = async (
     .delete()
     .eq('instance', instance)
     .eq('account_type', accountType)
-    .neq('id', '');
+    .not('asset', 'is', null);
   if (error) console.error('Error clearing asset balances by type:', error);
 };
 
@@ -566,72 +576,3 @@ export const deleteTradingLimit = async (id: string): Promise<void> => {
   if (error) console.error('Error deleting trading limit:', error);
 };
 
-// --- FIFO P&L Matching (manual trades only — OKX positions have P&L from exchange) ---
-
-export async function matchTradesForSymbol(
-  symbol: string,
-  instance: TradingInstance = 'live',
-): Promise<number> {
-  const trades = await loadTrades({ symbol }, instance);
-  const manualTrades = trades.filter((t) => t.source === 'manual');
-  const updates = computeFifoMatches(manualTrades);
-
-  let updatedCount = 0;
-  for (const update of updates) {
-    const existing = manualTrades.find((t) => t.id === update.id);
-    if (!existing) continue;
-
-    const currentPnl = existing.realizedPnl ?? null;
-    const newPnl = update.realizedPnl;
-    if (currentPnl === newPnl) continue;
-
-    await updateTrade(update.id, { realizedPnl: newPnl ?? undefined });
-    updatedCount++;
-  }
-
-  return updatedCount;
-}
-
-export async function recalcAllPnl(
-  instance: TradingInstance = 'live',
-): Promise<number> {
-  const trades = await loadTrades(undefined, instance);
-  const manualTrades = trades.filter((t) => t.source === 'manual');
-  const updates = computeFifoMatches(manualTrades);
-
-  let updatedCount = 0;
-  for (const update of updates) {
-    const existing = manualTrades.find((t) => t.id === update.id);
-    if (!existing) continue;
-
-    const currentPnl = existing.realizedPnl ?? null;
-    const newPnl = update.realizedPnl;
-    if (currentPnl === newPnl) continue;
-
-    await updateTrade(update.id, { realizedPnl: newPnl ?? undefined });
-    updatedCount++;
-  }
-
-  return updatedCount;
-}
-
-// --- Legacy Fill Cleanup ---
-
-export async function clearOkxFillTrades(
-  instance: TradingInstance = 'live',
-): Promise<number> {
-  const { data, error } = await supabase
-    .from('trades')
-    .delete()
-    .eq('instance', instance)
-    .eq('source', 'okx')
-    .not('okx_trade_id', 'is', null)
-    .is('okx_pos_id', null)
-    .select('id');
-
-  if (error) {
-    console.error('Error clearing OKX fill trades:', error);
-    return 0;
-  }
-  return data?.length ?? 0;
-}

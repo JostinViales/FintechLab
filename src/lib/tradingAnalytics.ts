@@ -72,7 +72,7 @@ const computeDrawdownMetrics = (
 
   if (sorted.length === 0) return { maxDrawdown: 0, maxDrawdownPct: 0 };
 
-  let equity = 10000; // reference starting capital
+  let equity = 0;
   let peak = equity;
   let maxDD = 0;
   let maxDDPct = 0;
@@ -146,7 +146,6 @@ export const computeTradingStats = (trades: Trade[]): TradingStats => {
  */
 export const computeEquityCurve = (
   trades: Trade[],
-  startingCapital: number,
 ): EquityCurvePoint[] => {
   const sorted = [...trades]
     .filter((t) => t.realizedPnl != null)
@@ -154,8 +153,8 @@ export const computeEquityCurve = (
 
   if (sorted.length === 0) return [];
 
-  let equity = startingCapital;
-  let peak = startingCapital;
+  let equity = 0;
+  let peak = 0;
   const points: EquityCurvePoint[] = [];
 
   for (const trade of sorted) {
@@ -173,51 +172,6 @@ export const computeEquityCurve = (
   }
 
   return points;
-};
-
-/**
- * Recalculate asset balances from trade history.
- * Uses weighted average cost basis method.
- * Only processes manual trades — OKX balances are synced directly from the exchange.
- */
-export const computeAssetBalancesFromTrades = (
-  trades: Trade[],
-): Map<string, { totalQuantity: number; avgBuyPrice: number; totalCost: number }> => {
-  const manualTrades = trades.filter((t) => t.source === 'manual');
-  const sorted = [...manualTrades].sort(
-    (a, b) => new Date(a.tradedAt).getTime() - new Date(b.tradedAt).getTime(),
-  );
-
-  const balances = new Map<
-    string,
-    { totalQuantity: number; avgBuyPrice: number; totalCost: number }
-  >();
-
-  for (const trade of sorted) {
-    const asset = trade.symbol.split('-')[0] ?? trade.symbol;
-    const current = balances.get(asset) ?? { totalQuantity: 0, avgBuyPrice: 0, totalCost: 0 };
-
-    if (trade.side === 'buy') {
-      const newCost = current.totalCost + trade.total;
-      const newQty = current.totalQuantity + trade.quantity;
-      current.totalQuantity = newQty;
-      current.totalCost = newCost;
-      current.avgBuyPrice = newQty > 0 ? newCost / newQty : 0;
-    } else {
-      const sellRatio =
-        current.totalQuantity > 0 ? Math.min(trade.quantity / current.totalQuantity, 1) : 0;
-      current.totalQuantity = Math.max(0, current.totalQuantity - trade.quantity);
-      current.totalCost = current.totalCost * (1 - sellRatio);
-    }
-
-    balances.set(asset, current);
-  }
-
-  for (const [asset, bal] of balances) {
-    if (bal.totalQuantity <= 0) balances.delete(asset);
-  }
-
-  return balances;
 };
 
 /**
@@ -278,67 +232,20 @@ export const computeTimeAnalysis = (trades: Trade[]): TimeAnalysis => {
 };
 
 /**
- * Estimate hold durations.
- * OKX positions: use openTime/closeTime directly.
- * Manual trades: pair buy/sell per symbol using FIFO.
+ * Compute hold durations from OKX positions using openTime/closeTime.
  */
 export const computeHoldDurations = (trades: Trade[]): HoldDuration[] => {
-  const durations: HoldDuration[] = [];
+  const positions = trades.filter((t) => t.openTime && t.closeTime);
 
-  // OKX positions: direct duration from openTime/closeTime
-  const okxPositions = trades.filter(
-    (t) => t.source === 'okx' && t.openTime && t.closeTime,
-  );
-  for (const pos of okxPositions) {
+  return positions.map((pos) => {
     const durationMs =
       new Date(pos.closeTime!).getTime() - new Date(pos.openTime!).getTime();
-    durations.push({
+    return {
       durationMinutes: Math.max(0, durationMs / 60000),
       pnl: pos.realizedPnl ?? 0,
       symbol: pos.symbol,
-    });
-  }
-
-  // Manual trades: FIFO pairing
-  const manualTrades = trades.filter((t) => t.source === 'manual');
-  const sorted = [...manualTrades].sort(
-    (a, b) => new Date(a.tradedAt).getTime() - new Date(b.tradedAt).getTime(),
-  );
-
-  const buyQueues = new Map<string, { tradedAt: string; quantity: number; price: number }[]>();
-
-  for (const trade of sorted) {
-    const symbol = trade.symbol;
-
-    if (trade.side === 'buy') {
-      const queue = buyQueues.get(symbol) ?? [];
-      queue.push({ tradedAt: trade.tradedAt, quantity: trade.quantity, price: trade.price });
-      buyQueues.set(symbol, queue);
-    } else {
-      const queue = buyQueues.get(symbol) ?? [];
-      let remaining = trade.quantity;
-
-      while (remaining > 0 && queue.length > 0) {
-        const oldest = queue[0]!;
-        const matched = Math.min(remaining, oldest.quantity);
-        const durationMs =
-          new Date(trade.tradedAt).getTime() - new Date(oldest.tradedAt).getTime();
-        const pnl = matched * (trade.price - oldest.price);
-
-        durations.push({
-          durationMinutes: Math.max(0, durationMs / 60000),
-          pnl,
-          symbol,
-        });
-
-        remaining -= matched;
-        oldest.quantity -= matched;
-        if (oldest.quantity <= 0) queue.shift();
-      }
-    }
-  }
-
-  return durations;
+    };
+  });
 };
 
 /**

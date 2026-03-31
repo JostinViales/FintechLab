@@ -46,7 +46,6 @@ export type {
   OkxProxyRequest,
   OkxProxyResponse,
   OkxApiResponse,
-  OkxFill,
   OkxBalanceDetail,
   OkxAccountBalance,
   OkxFundingBalance,

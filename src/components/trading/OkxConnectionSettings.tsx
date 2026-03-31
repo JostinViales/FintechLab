@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wifi, WifiOff, Eye, EyeOff, RefreshCw, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { Wifi, WifiOff, Eye, EyeOff, RefreshCw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import {
   testConnection,
@@ -7,7 +7,6 @@ import {
   syncTradesFromOkx,
   syncBalancesFromOkx,
 } from '@/services/okx/client';
-import { clearOkxFillTrades } from '@/services/supabase/trading';
 import { useTradingInstance } from '@/hooks/useTradingInstance';
 import type { OkxSyncResult } from '@/types/okx';
 
@@ -38,8 +37,6 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
   const [tradeSyncStatus, setTradeSyncStatus] = useState<SyncStatus>('idle');
   const [balanceSyncStatus, setBalanceSyncStatus] = useState<SyncStatus>('idle');
   const [syncResult, setSyncResult] = useState<OkxSyncResult | null>(null);
-  const [clearStatus, setClearStatus] = useState<SyncStatus>('idle');
-  const [clearCount, setClearCount] = useState(0);
 
   const handleSaveCredentials = async () => {
     if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) {
@@ -85,26 +82,6 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
     const success = await syncBalancesFromOkx(instance);
     setBalanceSyncStatus(success ? 'done' : 'error');
     if (success) onSyncComplete();
-  };
-
-  const handleClearFillTrades = async () => {
-    if (!window.confirm('This will delete all OKX fill trades. This action cannot be undone. Continue?')) {
-      return;
-    }
-
-    setClearStatus('syncing');
-    setClearCount(0);
-
-    try {
-      const deletedCount = await clearOkxFillTrades(instance);
-      setClearCount(deletedCount);
-      setClearStatus('done');
-      onSyncComplete();
-      setTimeout(() => setClearStatus('idle'), 3000);
-    } catch {
-      setClearStatus('error');
-      setTimeout(() => setClearStatus('idle'), 3000);
-    }
   };
 
   const instanceLabel = isDemo ? 'Demo' : 'Live';
@@ -333,35 +310,6 @@ export const OkxConnectionSettings: React.FC<OkxConnectionSettingsProps> = ({ on
             )}
           </div>
 
-          {/* Clear Legacy Fills */}
-          <div className="pt-2 border-t border-[var(--border-default)]">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleClearFillTrades}
-                disabled={clearStatus === 'syncing'}
-                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-              >
-                {clearStatus === 'syncing' ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Trash2 size={14} />
-                )}
-                Clear Legacy Fills
-              </button>
-              {clearStatus === 'done' && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <CheckCircle size={14} className="text-emerald-500" />
-                  <span className="text-emerald-500">Deleted {clearCount} fill trade{clearCount !== 1 ? 's' : ''}</span>
-                </div>
-              )}
-              {clearStatus === 'error' && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <AlertCircle size={14} className="text-red-500" />
-                  <span className="text-red-500">Failed to clear trades</span>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </Card>
     </div>

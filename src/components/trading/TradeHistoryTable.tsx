@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react';
+import { Search, ArrowUp, ArrowDown } from 'lucide-react';
 import type { Trade, StrategyTag, TradeSide } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { formatCurrency, formatCrypto, formatPnl, formatDate } from '@/lib/format';
@@ -7,8 +7,6 @@ import { formatCurrency, formatCrypto, formatPnl, formatDate } from '@/lib/forma
 interface TradeHistoryTableProps {
   trades: Trade[];
   strategyTags: StrategyTag[];
-  onEdit: (trade: Trade) => void;
-  onDelete: (id: string) => void;
 }
 
 type SortField = 'traded_at' | 'price' | 'total' | 'realized_pnl';
@@ -17,8 +15,6 @@ type SortOrder = 'asc' | 'desc';
 export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
   trades,
   strategyTags,
-  onEdit,
-  onDelete,
 }) => {
   const [search, setSearch] = useState('');
   const [filterSide, setFilterSide] = useState<TradeSide | 'All'>('All');
@@ -179,9 +175,6 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                   Strategy
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)] bg-[var(--bg-secondary)]">
@@ -269,25 +262,11 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                       <span className="text-[var(--text-muted)]">---</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-right text-sm font-medium">
-                    <button
-                      onClick={() => onEdit(t)}
-                      className="mr-3 text-[var(--accent-primary)] hover:opacity-80"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => onDelete(t.id)}
-                      className="text-[var(--accent-danger)] hover:opacity-80"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
                 </tr>
               ))}
               {processedTrades.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-[var(--text-muted)]">
+                  <td colSpan={8} className="px-6 py-12 text-center text-[var(--text-muted)]">
                     No trades found matching your filters.
                   </td>
                 </tr>
@@ -306,8 +285,7 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
             processedTrades.map((t) => (
               <div
                 key={t.id}
-                className="bg-[var(--bg-secondary)] p-4 transition-colors active:bg-[var(--bg-tertiary)]"
-                onClick={() => onEdit(t)}
+                className="bg-[var(--bg-secondary)] p-4"
               >
                 <div className="flex gap-3">
                   <div
@@ -393,26 +371,6 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                             {t.strategyTag}
                           </span>
                         )}
-                      </div>
-                      <div className="flex gap-4">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEdit(t);
-                          }}
-                          className="rounded-full p-2 text-[var(--accent-primary)] active:bg-[var(--accent-primary-light)]"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(t.id);
-                          }}
-                          className="rounded-full p-2 text-[var(--accent-danger)] active:bg-[var(--accent-danger-light)]"
-                        >
-                          <Trash2 size={18} />
-                        </button>
                       </div>
                     </div>
                   </div>

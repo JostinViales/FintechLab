@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard,
   ArrowLeftRight,
   Settings,
-  Plus,
   Loader2,
   BarChart3,
   Radio,
   Brain,
-  RefreshCw,
   CheckCircle,
   AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import type {
   Trade,
@@ -24,12 +23,7 @@ import type {
 import type { OkxTicker } from '@/types/okx';
 import {
   loadTrades,
-  saveTrade,
-  updateTrade,
-  deleteTrade as deleteTradeApi,
   loadAssetBalances,
-  upsertAssetBalance,
-  clearAssetBalancesByType,
   loadStrategyTags,
   saveStrategyTag,
   deleteStrategyTag as deleteStrategyTagApi,
@@ -41,13 +35,12 @@ import {
   loadTradingLimits,
   saveTradingLimit,
   deleteTradingLimit as deleteTradingLimitApi,
-  matchTradesForSymbol,
-  recalcAllPnl,
+  clearAllTrades,
+  clearAssetBalances,
 } from '@/services/supabase/trading';
 import {
   computeTradingStats,
   computeEquityCurve,
-  computeAssetBalancesFromTrades,
   computeTimeAnalysis,
   computeHoldDurations,
   computePnlTimeline,
@@ -58,7 +51,6 @@ import { okxWebSocket } from '@/services/okx/websocket';
 import { useTradingInstance } from '@/hooks/useTradingInstance';
 import { Card } from '@/components/ui/Card';
 import { PnlSummaryCards } from '@/components/trading/PnlSummaryCards';
-import { TradeForm } from '@/components/trading/TradeForm';
 import { TradeHistoryTable } from '@/components/trading/TradeHistoryTable';
 import { AssetBalancesTable } from '@/components/trading/AssetBalancesTable';
 import { AllocationPieChart } from '@/components/trading/AllocationPieChart';
@@ -89,8 +81,6 @@ const TABS: { id: TradingTab; label: string; icon: React.FC<{ size?: number }> }
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-const STARTING_CAPITAL = 10000;
-
 export const TradingPage: React.FC = () => {
   const { instance } = useTradingInstance();
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -101,11 +91,8 @@ export const TradingPage: React.FC = () => {
   const [tradingLimits, setTradingLimits] = useState<TradingLimit[]>([]);
   const [livePrices, setLivePrices] = useState<Map<string, OkxTicker>>(new Map());
   const [activeTab, setActiveTab] = useState<TradingTab>('overview');
-  const [isTradeFormOpen, setIsTradeFormOpen] = useState(false);
-  const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [loading, setLoading] = useState(true);
-  const [recalcStatus, setRecalcStatus] = useState<'idle' | 'running' | 'done'>('idle');
-  const [recalcCount, setRecalcCount] = useState(0);
+  const [resetStatus, setResetStatus] = useState<'idle' | 'confirm' | 'running' | 'done'>('idle');
   const [syncError, setSyncError] = useState<string | null>(null);
 
   // --- Data Loading (re-runs on instance change) ---
@@ -153,7 +140,7 @@ export const TradingPage: React.FC = () => {
 
   // --- Computed ---
   const tradingStats = useMemo(() => computeTradingStats(trades), [trades]);
-  const equityCurve = useMemo(() => computeEquityCurve(trades, STARTING_CAPITAL), [trades]);
+  const equityCurve = useMemo(() => computeEquityCurve(trades), [trades]);
   const timeAnalysis = useMemo(() => computeTimeAnalysis(trades), [trades]);
   const holdDurations = useMemo(() => computeHoldDurations(trades), [trades]);
   const pnlTimeline = useMemo(() => computePnlTimeline(trades), [trades]);
@@ -188,76 +175,6 @@ export const TradingPage: React.FC = () => {
       allSymbols.forEach((symbol) => okxWebSocket.unsubscribeTicker(symbol));
     };
   }, [watchlist, assetBalances]);
-
-  // --- Asset Balance Recalculation (trading account only) ---
-  const recalcBalances = useCallback(
-    async (updatedTrades: Trade[]) => {
-      const computed = computeAssetBalancesFromTrades(updatedTrades);
-
-      // Only clear trading-type balances — preserve Funding/Earn rows
-      await clearAssetBalancesByType('trading', instance);
-
-      if (computed.size === 0) {
-        // Reload to keep Funding/Earn balances visible
-        const remaining = await loadAssetBalances(instance);
-        setAssetBalances(remaining);
-        return;
-      }
-
-      const promises = Array.from(computed.entries()).map(([asset, bal]) =>
-        upsertAssetBalance(
-          {
-            asset,
-            totalQuantity: bal.totalQuantity,
-            avgBuyPrice: bal.avgBuyPrice,
-            totalCost: bal.totalCost,
-            accountType: 'trading',
-          },
-          instance,
-        ),
-      );
-      await Promise.all(promises);
-      // Reload all balances so Funding/Earn remain visible
-      const allBalances = await loadAssetBalances(instance);
-      setAssetBalances(allBalances);
-    },
-    [instance],
-  );
-
-  // --- Trade Handlers ---
-  const handleSaveTrade = async (data: Omit<Trade, 'id' | 'createdAt' | 'total'>) => {
-    let savedSymbol: string;
-
-    if (editingTrade) {
-      const updated = await updateTrade(editingTrade.id, data);
-      if (!updated) return;
-      savedSymbol = updated.symbol;
-    } else {
-      const saved = await saveTrade(data, instance);
-      if (!saved) return;
-      savedSymbol = saved.symbol;
-    }
-
-    await matchTradesForSymbol(savedSymbol, instance);
-    const refreshedTrades = await loadTrades(undefined, instance);
-    setTrades(refreshedTrades);
-    setEditingTrade(null);
-    await recalcBalances(refreshedTrades);
-  };
-
-  const handleDeleteTrade = async (id: string) => {
-    if (!confirm('Delete this trade?')) return;
-    const deletedTrade = trades.find((t) => t.id === id);
-    await deleteTradeApi(id);
-
-    if (deletedTrade) {
-      await matchTradesForSymbol(deletedTrade.symbol, instance);
-    }
-
-    const refreshedTrades = await loadTrades(undefined, instance);
-    setTrades(refreshedTrades);
-    await recalcBalances(refreshedTrades);
-  };
 
   // --- Strategy Tag Handlers ---
   const handleSaveStrategyTag = async (tag: Omit<StrategyTag, 'id'>) => {
@@ -314,21 +231,22 @@ export const TradingPage: React.FC = () => {
     setWatchlist((prev) => prev.filter((w) => w.id !== id));
   };
 
-  // --- Recalculate All P&L ---
-  const handleRecalcAllPnl = async () => {
-    setRecalcStatus('running');
-    const count = await recalcAllPnl(instance);
-    const refreshedTrades = await loadTrades(undefined, instance);
-    setTrades(refreshedTrades);
-    await recalcBalances(refreshedTrades);
-    setRecalcCount(count);
-    setRecalcStatus('done');
-    setTimeout(() => setRecalcStatus('idle'), 3000);
+  const handleResetTradingData = async () => {
+    if (resetStatus !== 'confirm') {
+      setResetStatus('confirm');
+      return;
+    }
+    setResetStatus('running');
+    await clearAllTrades(instance);
+    await clearAssetBalances(instance);
+    setTrades([]);
+    setAssetBalances([]);
+    setResetStatus('done');
+    setTimeout(() => setResetStatus('idle'), 3000);
   };
 
   // --- OKX Sync Handler ---
   const handleSyncComplete = async () => {
-    await recalcAllPnl(instance);
     const [tradesData, balancesData] = await Promise.all([
       loadTrades(undefined, instance),
       loadAssetBalances(instance),
@@ -402,26 +320,9 @@ export const TradingPage: React.FC = () => {
       {/* Trades Tab */}
       {activeTab === 'trades' && (
         <div className="space-y-6 animate-in fade-in duration-300">
-          <div className="flex justify-end">
-            <button
-              onClick={() => {
-                setEditingTrade(null);
-                setIsTradeFormOpen(true);
-              }}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-all active:scale-95"
-            >
-              <Plus size={20} />
-              <span>Add Trade</span>
-            </button>
-          </div>
           <TradeHistoryTable
             trades={trades}
             strategyTags={strategyTags}
-            onEdit={(trade) => {
-              setEditingTrade(trade);
-              setIsTradeFormOpen(true);
-            }}
-            onDelete={handleDeleteTrade}
           />
         </div>
       )}
@@ -493,28 +394,44 @@ export const TradingPage: React.FC = () => {
         <div className="space-y-6 animate-in fade-in duration-300">
           <OkxConnectionSettings onSyncComplete={handleSyncComplete} />
 
-          <Card title="Recalculate All P&L">
+          <Card title="Reset Trading Data">
             <p className="text-sm text-[var(--text-secondary)] mb-4">
-              Re-run FIFO matching for manually entered trades to recalculate realized P&L.
-              Useful after bulk imports or manual edits.
+              Delete all trades and asset balances for this instance. You can then re-sync from OKX
+              to start fresh with live data.
             </p>
             <div className="flex items-center gap-3">
               <button
-                onClick={handleRecalcAllPnl}
-                disabled={recalcStatus === 'running'}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg shadow-md transition-all active:scale-95"
+                onClick={handleResetTradingData}
+                disabled={resetStatus === 'running'}
+                className={`flex items-center gap-2 ${
+                  resetStatus === 'confirm'
+                    ? 'bg-red-700 hover:bg-red-800'
+                    : 'bg-red-600 hover:bg-red-700'
+                } disabled:opacity-50 text-white px-4 py-2 rounded-lg shadow-md transition-all active:scale-95`}
               >
-                {recalcStatus === 'running' ? (
+                {resetStatus === 'running' ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <RefreshCw size={16} />
+                  <Trash2 size={16} />
                 )}
-                {recalcStatus === 'running' ? 'Recalculating...' : 'Recalculate All P&L'}
+                {resetStatus === 'confirm'
+                  ? 'Click again to confirm'
+                  : resetStatus === 'running'
+                    ? 'Deleting...'
+                    : 'Delete All Trades & Balances'}
               </button>
-              {recalcStatus === 'done' && (
+              {resetStatus === 'confirm' && (
+                <button
+                  onClick={() => setResetStatus('idle')}
+                  className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  Cancel
+                </button>
+              )}
+              {resetStatus === 'done' && (
                 <span className="flex items-center gap-1 text-sm text-emerald-400">
                   <CheckCircle size={16} />
-                  Updated {recalcCount} trade{recalcCount !== 1 ? 's' : ''}
+                  All data cleared
                 </span>
               )}
             </div>
@@ -536,18 +453,6 @@ export const TradingPage: React.FC = () => {
         </div>
       )}
 
-      {/* Trade Form Modal */}
-      {isTradeFormOpen && (
-        <TradeForm
-          strategyTags={strategyTags}
-          initialData={editingTrade}
-          onClose={() => {
-            setIsTradeFormOpen(false);
-            setEditingTrade(null);
-          }}
-          onSubmit={handleSaveTrade}
-        />
-      )}
     </div>
   );
 };
