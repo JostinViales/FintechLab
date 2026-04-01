@@ -1,0 +1,4 @@
+summary: "Return Supabase config for frontend initialization"
+language: python3
+is_template: false
+kind: script
