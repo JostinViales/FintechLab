@@ -1,5 +1,3 @@
-[functions.gemini-proxy]
-verify_jwt = false
-
-[functions.okx-proxy]
-verify_jwt = false
+# Supabase local config
+# Edge functions (gemini-proxy, okx-proxy) have been migrated to Windmill Python runnables.
+# This file is kept for supabase CLI migrations only.
